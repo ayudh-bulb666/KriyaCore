@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full"
+      x-data="{ darkMode: localStorage.getItem('gympro-dark') === 'true' }"
+      :class="{ dark: darkMode }"
+      x-init="$watch('darkMode', v => localStorage.setItem('gympro-dark', v))">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — GYMPro</title>
+  <link rel="manifest" href="/static/manifest.json" />
+  <meta name="theme-color" content="#166534" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="GYMPro" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <script>if (localStorage.getItem('gympro-dark') === 'true') document.documentElement.classList.add('dark');</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>[x-cloak]{display:none!important}</style>
+</head>
+
+<body class="h-full bg-gray-50 dark:bg-slate-950 flex transition-colors">
+
+<!-- ── Left panel — brand ───────────────────────────────────────────────── -->
+<div class="hidden lg:flex lg:w-1/2 xl:w-[45%] relative bg-green-800 flex-col justify-between p-12 overflow-hidden">
+
+  <!-- Decorative circles -->
+  <div class="absolute -top-20 -left-20 w-72 h-72 rounded-full bg-white/5"></div>
+  <div class="absolute top-1/3 -right-16 w-56 h-56 rounded-full bg-white/5"></div>
+  <div class="absolute -bottom-16 left-1/4 w-80 h-80 rounded-full bg-white/5"></div>
+
+  <!-- Logo -->
+  <div class="relative flex items-center gap-3">
+    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+      <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43z"/>
+      </svg>
+    </div>
+    <span class="text-white font-bold text-xl tracking-tight">GYMPro</span>
+  </div>
+
+  <!-- Headline -->
+  <div class="relative">
+    <h1 class="text-4xl font-extrabold text-white leading-tight mb-4">
+      Your Gym,<br/>Managed.
+    </h1>
+    <p class="text-green-200 text-base leading-relaxed max-w-sm">
+      The all-in-one CRM built for modern gyms — member management, billing, attendance, and reminders in one place.
+    </p>
+
+    <!-- Feature bullets -->
+    <div class="mt-10 space-y-4">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </div>
+        <span class="text-green-100 text-sm font-medium">Member & trainer management</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+          </svg>
+        </div>
+        <span class="text-green-100 text-sm font-medium">Membership billing & renewals</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+          </svg>
+        </div>
+        <span class="text-green-100 text-sm font-medium">Attendance tracking & check-ins</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+        </div>
+        <span class="text-green-100 text-sm font-medium">Automated renewal reminders</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer note -->
+  <p class="relative text-green-400 text-xs">© 2026 GYMPro. All rights reserved.</p>
+</div>
+
+<!-- ── Right panel — form ────────────────────────────────────────────────── -->
+<div class="flex-1 flex flex-col items-center justify-center px-6 py-12 relative">
+
+  <!-- Dark mode toggle -->
+  <div class="absolute top-5 right-5">
+    <button @click="darkMode = !darkMode"
+            class="p-2 rounded-lg text-gray-400 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
+      <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+      </svg>
+      <svg x-show="darkMode" x-cloak class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Mobile logo (shown only on small screens where left panel is hidden) -->
+  <div class="lg:hidden flex items-center gap-2.5 mb-10">
+    <div class="w-9 h-9 bg-green-700 rounded-xl flex items-center justify-center shadow">
+      <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43z"/>
+      </svg>
+    </div>
+    <span class="text-gray-900 dark:text-white font-bold text-xl tracking-tight">GYMPro</span>
+  </div>
+
+  <!-- Form card -->
+  <div class="w-full max-w-sm">
+    <div class="mb-8">
+      <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h2>
+      <p class="text-gray-500 dark:text-slate-400 text-sm mt-1">Sign in to your account to continue</p>
+    </div>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+      <div class="mb-5 px-4 py-3 rounded-xl text-sm flex items-start gap-2
+                  {% if category == 'danger' %}bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/50
+                  {% elif category == 'warning' %}bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50
+                  {% else %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50{% endif %}">
+        <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        {{ message }}
+      </div>
+      {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-4">
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="email">
+          Email address
+        </label>
+        <input id="email" name="email" type="email" required autocomplete="email"
+               class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-xl text-sm
+                      bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                      placeholder-gray-400 dark:placeholder-slate-500
+                      focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent
+                      transition-shadow"
+               placeholder="you@gympro.com" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="password">
+          Password
+        </label>
+        <input id="password" name="password" type="password" required autocomplete="current-password"
+               class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-xl text-sm
+                      bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                      placeholder-gray-400 dark:placeholder-slate-500
+                      focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent
+                      transition-shadow"
+               placeholder="••••••••" />
+      </div>
+
+      <div class="flex items-center justify-between">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input id="remember" name="remember" type="checkbox"
+                 class="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-green-700 focus:ring-green-500 accent-green-700" />
+          <span class="text-sm text-gray-600 dark:text-slate-400">Remember me</span>
+        </label>
+      </div>
+
+      <button type="submit"
+              class="w-full py-2.5 px-4 bg-green-700 hover:bg-green-800 text-white font-semibold
+                     rounded-xl transition-colors text-sm shadow-sm mt-2">
+        Sign in
+      </button>
+
+    </form>
+
+    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-slate-700">
+      <p class="text-xs text-center text-gray-400 dark:text-slate-500">
+        Default admin:
+        <code class="text-gray-600 dark:text-slate-400 font-mono">admin@gympro.com</code>
+        &nbsp;/&nbsp;
+        <code class="text-gray-600 dark:text-slate-400 font-mono">admin123</code>
+      </p>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

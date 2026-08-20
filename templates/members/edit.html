@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}Edit {{ member.full_name }}{% endblock %}
+{% block heading %}Edit Member{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+    <div class="flex items-center gap-3 mb-6 pb-5 border-b border-gray-100 dark:border-slate-700">
+      <div class="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-700 dark:text-green-400 font-bold">
+        {{ member.initials }}
+      </div>
+      <div>
+        <p class="font-semibold text-gray-900 dark:text-slate-100">{{ member.full_name }}</p>
+        <p class="text-sm text-gray-500 dark:text-slate-400">Editing member profile</p>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('members.edit', member_id=member.id) }}" class="space-y-5">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">First Name <span class="text-red-500">*</span></label>
+          <input name="first_name" type="text" required value="{{ member.first_name }}"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Last Name <span class="text-red-500">*</span></label>
+          <input name="last_name" type="text" required value="{{ member.last_name }}"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Email</label>
+          <input name="email" type="email" value="{{ member.email or '' }}"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Phone</label>
+          <input name="phone" type="tel" value="{{ member.phone or '' }}"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Date of Birth</label>
+          <input name="date_of_birth" type="date"
+                 value="{{ member.date_of_birth.isoformat() if member.date_of_birth else '' }}"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Joining Date <span class="text-red-500">*</span></label>
+          <input name="joining_date" type="date" required
+                 value="{{ member.joining_date.isoformat() }}"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Assigned Trainer</label>
+          <select name="assigned_trainer_id"
+                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="">— No trainer —</option>
+            {% for trainer in trainers %}
+            <option value="{{ trainer.id }}" {% if member.assigned_trainer_id == trainer.id %}selected{% endif %}>
+              {{ trainer.name }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Member Status</label>
+          <select name="status"
+                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500">
+            <option value="active" {% if member.status == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if member.status == 'inactive' %}selected{% endif %}>Inactive</option>
+            <option value="suspended" {% if member.status == 'suspended' %}selected{% endif %}>Suspended</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Notes</label>
+        <textarea name="notes" rows="3"
+                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none">{{ member.notes or '' }}</textarea>
+      </div>
+
+      <div class="flex items-center gap-3 pt-2">
+        <button type="submit"
+                class="px-5 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors shadow">
+          Save Changes
+        </button>
+        <a href="{{ url_for('members.detail', member_id=member.id) }}"
+           class="px-5 py-2.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+          Cancel
+        </a>
+      </div>
+
+    </form>
+  </div>
+</div>
+{% endblock %}

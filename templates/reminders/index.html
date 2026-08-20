@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+{% block title %}Reminders{% endblock %}
+{% block heading %}Membership Renewal Reminders{% endblock %}
+
+{% block header_actions %}
+{% if email_configured and can_email %}
+<form method="POST" action="{{ url_for('reminders.send') }}"
+      onsubmit="return confirm('Send renewal reminders to {{ can_email|length }} member{{ 's' if can_email|length != 1 else '' }}?')">
+  <button type="submit"
+          class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors shadow">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+    </svg>
+    Send {{ can_email|length }} Reminder{{ 's' if can_email|length != 1 else '' }}
+  </button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Status Banner ──────────────────────────────────────────────────────── -->
+{% if email_configured %}
+<div class="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 rounded-xl px-5 py-4 mb-5">
+  <svg class="w-5 h-5 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <div class="flex-1 min-w-0">
+    <p class="font-semibold text-sm">SMTP configured — sending from <span class="font-mono">{{ mail_config.username }}</span> via {{ mail_config.server }}:{{ mail_config.port }}</p>
+    <p class="text-sm text-green-700 mt-0.5">Email delivery is ready. Send a test to verify your inbox.</p>
+  </div>
+  <form method="POST" action="{{ url_for('reminders.test_email') }}">
+    <button type="submit"
+            class="shrink-0 px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-medium rounded-lg transition-colors whitespace-nowrap">
+      Send Test
+    </button>
+  </form>
+</div>
+{% else %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-5 mb-5" x-data="{open: false}">
+  <div class="flex items-start gap-3">
+    <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+    </svg>
+    <div class="flex-1">
+      <p class="font-semibold text-amber-800 text-sm">Email not configured</p>
+      <p class="text-sm text-amber-700 mt-0.5">Set SMTP environment variables before sending emails.</p>
+    </div>
+    <button @click="open = !open"
+            class="shrink-0 px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-medium rounded-lg transition-colors">
+      Setup Guide ▾
+    </button>
+  </div>
+
+  <!-- Setup instructions -->
+  <div x-show="open" x-transition class="mt-4 pt-4 border-t border-amber-200">
+    <p class="text-sm font-semibold text-amber-800 mb-3">Set these environment variables before starting the server:</p>
+    <pre class="bg-amber-100 text-amber-900 text-xs rounded-lg p-4 overflow-x-auto leading-relaxed">export MAIL_SERVER="smtp.gmail.com"
+export MAIL_PORT="587"
+export MAIL_USE_TLS="true"
+export MAIL_USERNAME="your-gym@gmail.com"
+export MAIL_PASSWORD="your-app-password"
+export MAIL_DEFAULT_SENDER="GYMPro &lt;your-gym@gmail.com&gt;"</pre>
+    <p class="text-xs text-amber-700 mt-3">
+      <strong>Gmail users:</strong> Go to Google Account → Security → App Passwords and generate a 16-character app password.
+      Use that as <code class="bg-amber-100 px-1 rounded">MAIL_PASSWORD</code> instead of your regular Gmail password.
+    </p>
+    <p class="text-xs text-amber-700 mt-2">
+      <strong>Other providers:</strong> Outlook = <code class="bg-amber-100 px-1 rounded">smtp-mail.outlook.com:587</code>,
+      SendGrid = <code class="bg-amber-100 px-1 rounded">smtp.sendgrid.net:587</code> (user: <code class="bg-amber-100 px-1 rounded">apikey</code>).
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Stats Row ──────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-3 gap-4 mb-5">
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm px-5 py-4">
+    <p class="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase tracking-wide mb-1">Expiring This Week</p>
+    <p class="text-2xl font-bold text-gray-900 dark:text-slate-100">{{ (can_email|length) + (no_email|length) }}</p>
+  </div>
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm px-5 py-4">
+    <p class="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase tracking-wide mb-1">Will Receive Email</p>
+    <p class="text-2xl font-bold text-green-700 dark:text-green-400">{{ can_email|length }}</p>
+  </div>
+  <div class="bg-white dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700 shadow-sm px-5 py-4">
+    <p class="text-xs text-gray-500 dark:text-slate-400 font-medium uppercase tracking-wide mb-1">No Email on File</p>
+    <p class="text-2xl font-bold {% if no_email %}text-amber-500 dark:text-amber-400{% else %}text-gray-400 dark:text-slate-500{% endif %}">{{ no_email|length }}</p>
+  </div>
+</div>
+
+<!-- ── Main Content ───────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 xl:grid-cols-5 gap-5">
+
+  <!-- Recipients + actions — left/wider column -->
+  <div class="xl:col-span-3 space-y-5">
+
+    <!-- Recipients table -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold text-gray-900 dark:text-slate-100 text-sm">Reminder Recipients</h2>
+          <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">Members with email addresses expiring in the next 7 days</p>
+        </div>
+      </div>
+
+      {% if can_email %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Member</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Email</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Plan</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Expires</th>
+              <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Days Left</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
+            {% for mem in can_email %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-700 dark:text-green-400 text-xs font-bold shrink-0">
+                    {{ mem.member.initials }}
+                  </div>
+                  <a href="{{ url_for('members.detail', member_id=mem.member.id) }}"
+                     class="font-medium text-gray-900 dark:text-slate-100 hover:text-green-700 dark:hover:text-green-400 transition-colors">
+                    {{ mem.member.full_name }}
+                  </a>
+                </div>
+              </td>
+              <td class="px-4 py-3 text-gray-500 dark:text-slate-400 text-xs font-mono">{{ mem.member.email }}</td>
+              <td class="px-4 py-3 text-gray-700 dark:text-slate-300 font-medium">{{ mem.plan.name }}</td>
+              <td class="px-4 py-3 text-gray-500 dark:text-slate-400">{{ mem.end_date.strftime('%b %d, %Y') }}</td>
+              <td class="px-4 py-3">
+                {% set dr = mem.days_remaining %}
+                {% if dr == 0 %}
+                  <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">Today!</span>
+                {% elif dr == 1 %}
+                  <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">Tomorrow</span>
+                {% elif dr <= 3 %}
+                  <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{{ dr }}d</span>
+                {% else %}
+                  <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">{{ dr }}d</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="py-12 text-center text-gray-400">
+        <svg class="w-10 h-10 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <p class="font-medium text-sm">No memberships expiring this week</p>
+        <p class="text-xs mt-1">Check back when renewals are due soon.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Members without email -->
+    {% if no_email %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+        <h2 class="font-semibold text-gray-900 dark:text-slate-100 text-sm">⚠ Missing Email Address</h2>
+        <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">These members are expiring soon but have no email — they won't receive a reminder.</p>
+      </div>
+      <div class="divide-y divide-gray-50 dark:divide-slate-700">
+        {% for mem in no_email %}
+        <div class="flex items-center justify-between px-5 py-3">
+          <div class="flex items-center gap-2">
+            <div class="w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-600 flex items-center justify-center text-gray-500 dark:text-slate-300 text-xs font-bold">
+              {{ mem.member.initials }}
+            </div>
+            <div>
+              <p class="text-sm font-medium text-gray-900 dark:text-slate-100">{{ mem.member.full_name }}</p>
+              <p class="text-xs text-gray-400 dark:text-slate-500">{{ mem.plan.name }} · expires {{ mem.end_date.strftime('%b %d') }}</p>
+            </div>
+          </div>
+          <a href="{{ url_for('members.edit', member_id=mem.member.id) }}"
+             class="text-xs text-green-700 dark:text-green-400 hover:text-green-800 dark:hover:text-green-400 font-medium">Add email →</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+
+  <!-- Email preview — right column -->
+  <div class="xl:col-span-2">
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden sticky top-4">
+      <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+        <h2 class="font-semibold text-gray-900 dark:text-slate-100 text-sm">Email Preview</h2>
+        <p class="text-xs text-gray-500 dark:text-slate-400 mt-0.5">What members will receive</p>
+      </div>
+
+      <!-- Simulated email client -->
+      <div class="p-4">
+        <!-- Email chrome -->
+        <div class="rounded-lg border border-gray-200 overflow-hidden text-xs">
+          <div class="bg-gray-50 border-b border-gray-200 px-3 py-2 space-y-1">
+            <div class="flex gap-2">
+              <span class="text-gray-400 w-10 shrink-0">From</span>
+              <span class="text-gray-700 font-medium">GYMPro &lt;noreply@gympro.com&gt;</span>
+            </div>
+            <div class="flex gap-2">
+              <span class="text-gray-400 w-10 shrink-0">To</span>
+              <span class="text-gray-700">member@example.com</span>
+            </div>
+            <div class="flex gap-2">
+              <span class="text-gray-400 w-10 shrink-0">Subj</span>
+              <span class="text-gray-700 font-medium">⏰ Your GYMPro membership expires in 4 days</span>
+            </div>
+          </div>
+
+          <!-- Email body preview (scaled down) -->
+          <div class="bg-gray-100 p-3">
+            <div class="bg-white rounded-lg overflow-hidden border border-gray-200">
+              <!-- Header bar -->
+              <div class="bg-green-700 px-4 py-3 text-center">
+                <p class="text-white font-bold text-sm">GYMPro</p>
+                <p class="text-green-200 text-xs">Gym Management</p>
+              </div>
+              <!-- Body preview -->
+              <div class="px-4 py-3 space-y-2">
+                <p class="font-semibold text-gray-900 text-xs">Hi Alex,</p>
+                <p class="text-gray-600 text-xs leading-relaxed">
+                  This is a friendly reminder that your GYMPro membership is expiring
+                  <strong class="text-green-700">in 4 days</strong>.
+                  Renew now to keep your access without interruption.
+                </p>
+                <!-- Info box -->
+                <div class="bg-gray-50 border border-gray-200 rounded p-2.5 space-y-1">
+                  <div class="flex justify-between text-xs">
+                    <span class="text-gray-500">Plan</span>
+                    <span class="font-semibold text-gray-800">Quarterly</span>
+                  </div>
+                  <div class="flex justify-between text-xs">
+                    <span class="text-gray-500">Expiry Date</span>
+                    <span class="font-semibold text-gray-800">Aug 23, 2026</span>
+                  </div>
+                  <div class="flex justify-between text-xs">
+                    <span class="text-gray-500">Days Remaining</span>
+                    <span class="font-semibold text-amber-600">4 Days Left</span>
+                  </div>
+                  <div class="flex justify-between text-xs">
+                    <span class="text-gray-500">Amount Due</span>
+                    <span class="font-semibold text-gray-800">$129.00</span>
+                  </div>
+                </div>
+                <!-- CTA button -->
+                <div class="text-center pt-1">
+                  <span class="inline-block bg-green-700 text-white text-xs font-semibold px-4 py-1.5 rounded-lg">
+                    Renew My Membership →
+                  </span>
+                </div>
+              </div>
+              <!-- Footer -->
+              <div class="bg-gray-50 border-t border-gray-100 px-4 py-2 text-center">
+                <p class="text-gray-400 text-xs">GYMPro · Gym Management System</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Send action -->
+      {% if can_email %}
+      <div class="px-4 pb-4">
+        {% if email_configured %}
+        <form method="POST" action="{{ url_for('reminders.send') }}"
+              onsubmit="return confirm('Send renewal reminders to {{ can_email|length }} member{{ 's' if can_email|length != 1 else '' }}?')">
+          <button type="submit"
+                  class="w-full px-4 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors">
+            Send {{ can_email|length }} Reminder{{ 's' if can_email|length != 1 else '' }}
+          </button>
+        </form>
+        {% else %}
+        <button disabled
+                class="w-full px-4 py-2.5 bg-gray-200 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed">
+          Configure Email First
+        </button>
+        <p class="text-xs text-gray-400 text-center mt-2">Set SMTP environment variables to enable sending.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}

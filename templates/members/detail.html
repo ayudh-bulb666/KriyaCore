@@ -1,0 +1,238 @@
+{% extends 'base.html' %}
+{% block title %}{{ member.full_name }}{% endblock %}
+{% block heading %}Member Profile{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('members.edit', member_id=member.id) }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-sm font-medium rounded-lg border border-gray-200 dark:border-slate-600 transition-colors">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+  </svg>
+  Edit
+</a>
+<a href="{{ url_for('billing.new') }}?member_id={{ member.id }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors shadow">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+  </svg>
+  Assign Membership
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl space-y-5">
+
+  <!-- Profile header -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
+    <div class="flex items-start gap-5">
+      <div class="w-16 h-16 rounded-2xl bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-700 dark:text-green-400 text-2xl font-bold shrink-0">
+        {{ member.initials }}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-3 flex-wrap">
+          <h2 class="text-xl font-bold text-gray-900 dark:text-slate-100">{{ member.full_name }}</h2>
+          <span class="px-2.5 py-0.5 rounded-full text-xs font-medium
+            {% if member.status == 'active' %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400
+            {% elif member.status == 'suspended' %}bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400
+            {% else %}bg-gray-100 dark:bg-slate-600 text-gray-500 dark:text-slate-400{% endif %}">
+            {{ member.status|capitalize }}
+          </span>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-slate-400 mt-1">
+          Member since {{ member.joining_date.strftime('%B %d, %Y') }}
+          &nbsp;·&nbsp;
+          {% set days_member = (today - member.joining_date).days %}
+          {% if days_member < 30 %}{{ days_member }} days{% elif days_member < 365 %}{{ (days_member // 30) }} months{% else %}{{ (days_member // 365) }} year{% if days_member // 365 > 1 %}s{% endif %}{% endif %}
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 pt-5 border-t border-gray-100 dark:border-slate-700">
+      <div>
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-0.5">Email</p>
+        <p class="text-sm text-gray-700 dark:text-slate-300 truncate">{{ member.email or '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-0.5">Phone</p>
+        <p class="text-sm text-gray-700 dark:text-slate-300">{{ member.phone or '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-0.5">Trainer</p>
+        <p class="text-sm text-gray-700 dark:text-slate-300">{{ member.trainer.name if member.trainer else '—' }}</p>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 dark:text-slate-500 mb-0.5">Date of Birth</p>
+        <p class="text-sm text-gray-700 dark:text-slate-300">
+          {{ member.date_of_birth.strftime('%b %d, %Y') if member.date_of_birth else '—' }}
+        </p>
+      </div>
+    </div>
+
+    {% if member.notes %}
+    <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+      <p class="text-xs text-gray-400 dark:text-slate-500 mb-1">Notes</p>
+      <p class="text-sm text-gray-600 dark:text-slate-300">{{ member.notes }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Current membership status -->
+  {% set active_mem = member.active_membership %}
+  {% if active_mem %}
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Current Membership</h3>
+    <div class="flex items-center gap-4 p-4 rounded-lg
+                {% if active_mem.is_expiring_soon %}bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40{% else %}bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/40{% endif %}">
+      <div class="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+        <div>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Plan</p>
+          <p class="font-semibold text-gray-900 dark:text-slate-100">{{ active_mem.plan.name }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Started</p>
+          <p class="font-medium text-gray-700 dark:text-slate-300">{{ active_mem.start_date.strftime('%b %d, %Y') }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Expires</p>
+          <p class="font-medium {% if active_mem.is_expiring_soon %}text-amber-700 dark:text-amber-400{% else %}text-gray-700 dark:text-slate-300{% endif %}">
+            {{ active_mem.end_date.strftime('%b %d, %Y') }}
+            {% if active_mem.is_expiring_soon %}
+            <span class="text-xs">({{ active_mem.days_remaining }}d left)</span>
+            {% endif %}
+          </p>
+        </div>
+        <div>
+          <p class="text-xs text-gray-500 dark:text-slate-400">Payment</p>
+          <span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium
+            {% if active_mem.payment_status == 'paid' %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400
+            {% elif active_mem.payment_status == 'overdue' %}bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400
+            {% else %}bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400{% endif %}">
+            {{ active_mem.payment_status|capitalize }}
+          </span>
+        </div>
+      </div>
+      <div class="shrink-0 flex gap-2">
+        {% if active_mem.payment_status != 'paid' %}
+        <form method="POST" action="{{ url_for('billing.pay', membership_id=active_mem.id) }}">
+          <button type="submit" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white text-xs font-medium rounded-lg transition-colors">
+            Mark Paid
+          </button>
+        </form>
+        {% endif %}
+        <form method="POST" action="{{ url_for('billing.renew', membership_id=active_mem.id) }}">
+          <button type="submit" class="px-3 py-1.5 bg-green-700 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors">
+            Renew
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Membership history -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Membership History</h3>
+      <span class="text-xs text-gray-400 dark:text-slate-500">{{ member.memberships|length }} record{% if member.memberships|length != 1 %}s{% endif %}</span>
+    </div>
+
+    {% if member.memberships %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-100 dark:border-slate-700">
+            <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Plan</th>
+            <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Period</th>
+            <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Amount</th>
+            <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Status</th>
+            <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Payment</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
+          {% for mem in member.memberships %}
+          <tr>
+            <td class="py-2.5 font-medium text-gray-800 dark:text-slate-200">{{ mem.plan.name }}</td>
+            <td class="py-2.5 text-gray-500 dark:text-slate-400">
+              {{ mem.start_date.strftime('%b %d, %Y') }} → {{ mem.end_date.strftime('%b %d, %Y') }}
+            </td>
+            <td class="py-2.5 text-gray-700 dark:text-slate-300">₹{{ "%.2f"|format(mem.amount) }}</td>
+            <td class="py-2.5">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                {% if mem.status == 'active' %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400
+                {% elif mem.status == 'expired' %}bg-gray-100 dark:bg-slate-600 text-gray-500 dark:text-slate-400
+                {% else %}bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400{% endif %}">
+                {{ mem.status|capitalize }}
+              </span>
+            </td>
+            <td class="py-2.5">
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium
+                {% if mem.payment_status == 'paid' %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400
+                {% elif mem.payment_status == 'overdue' %}bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400
+                {% else %}bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400{% endif %}">
+                {{ mem.payment_status|capitalize }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">No membership records yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Visit history -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Recent Visits</h3>
+      <span class="text-xs text-gray-400 dark:text-slate-500">{{ member.attendance|length }} total visit{% if member.attendance|length != 1 %}s{% endif %}</span>
+    </div>
+    {% set recent_visits = member.attendance[:10] %}
+    {% if recent_visits %}
+    <div class="space-y-2">
+      {% for visit in recent_visits %}
+      <div class="flex items-center gap-4 py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
+        <div class="w-1.5 h-1.5 rounded-full shrink-0 {% if not visit.check_out %}bg-green-500{% else %}bg-gray-300 dark:bg-slate-600{% endif %}"></div>
+        <span class="text-sm text-gray-600 dark:text-slate-400 w-28">{{ visit.check_in.strftime('%b %d, %Y') }}</span>
+        <span class="text-sm text-gray-700 dark:text-slate-300 font-medium">{{ visit.check_in.strftime('%I:%M %p') }}</span>
+        <span class="text-gray-400 dark:text-slate-500 text-xs">→</span>
+        {% if visit.check_out %}
+          <span class="text-sm text-gray-700 dark:text-slate-300">{{ visit.check_out.strftime('%I:%M %p') }}</span>
+          <span class="text-xs text-gray-400 dark:text-slate-500 ml-auto">
+            {% set h = visit.duration_minutes // 60 %}{% set m = visit.duration_minutes % 60 %}
+            {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m
+          </span>
+        {% else %}
+          <span class="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded-full">In gym now</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-sm text-gray-400 dark:text-slate-500 py-4 text-center">No visits recorded yet.</p>
+    {% endif %}
+  </div>
+
+  <!-- Danger zone (admin only) -->
+  {% if current_user.is_super_admin %}
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-red-100 dark:border-red-900/40 p-5">
+    <h3 class="text-sm font-semibold text-red-700 dark:text-red-400 mb-3">Danger Zone</h3>
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm text-gray-600 dark:text-slate-400">Delete this member and all their records.</p>
+        <p class="text-xs text-gray-400 dark:text-slate-500">This action cannot be undone.</p>
+      </div>
+      <form method="POST" action="{{ url_for('members.delete', member_id=member.id) }}"
+            onsubmit="return confirm('Are you sure you want to permanently delete {{ member.full_name }}?')">
+        <button type="submit"
+                class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors">
+          Delete Member
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

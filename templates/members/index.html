@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% block title %}Members{% endblock %}
+{% block heading %}Members{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('members.export_csv', search=search, status=status_filter, trainer=trainer_filter) }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-sm font-medium rounded-lg border border-gray-200 dark:border-slate-600 transition-colors">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+  </svg>
+  Export CSV
+</a>
+<a href="{{ url_for('members.new') }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors shadow">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+  </svg>
+  Add Member
+</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filters -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-4 mb-5">
+  <form method="GET" class="flex flex-wrap gap-3 items-end">
+    <div class="flex-1 min-w-48">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Search</label>
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input name="search" value="{{ search }}" type="text" placeholder="Name, email, or phone…"
+               class="w-full pl-9 pr-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"/>
+      </div>
+    </div>
+
+    <div class="min-w-36">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Status</label>
+      <select name="status" class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500">
+        <option value="">All statuses</option>
+        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+        <option value="suspended" {% if status_filter == 'suspended' %}selected{% endif %}>Suspended</option>
+      </select>
+    </div>
+
+    <div class="min-w-44">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Trainer</label>
+      <select name="trainer" class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500">
+        <option value="">All trainers</option>
+        <option value="none" {% if trainer_filter == 'none' %}selected{% endif %}>Unassigned</option>
+        {% for trainer in trainers %}
+        <option value="{{ trainer.id }}" {% if trainer_filter == trainer.id|string %}selected{% endif %}>
+          {{ trainer.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <button type="submit"
+            class="px-4 py-2 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors">
+      Search
+    </button>
+    {% if search or status_filter or trainer_filter %}
+    <a href="{{ url_for('members.index') }}"
+       class="px-4 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+      Clear
+    </a>
+    {% endif %}
+  </form>
+</div>
+
+<p class="text-sm text-gray-500 dark:text-slate-400 mb-3">
+  {{ members|length }} member{% if members|length != 1 %}s{% endif %} found
+</p>
+
+<!-- Table -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+  {% if members %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Member</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Contact</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Trainer</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Joined</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Membership</th>
+          <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
+        {% for member in members %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-700 dark:text-green-400 text-xs font-bold shrink-0">
+                {{ member.initials }}
+              </div>
+              <a href="{{ url_for('members.detail', member_id=member.id) }}"
+                 class="font-medium text-gray-900 dark:text-slate-100 hover:text-green-700 dark:hover:text-green-400 transition-colors">
+                {{ member.full_name }}
+              </a>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-gray-500 dark:text-slate-400">
+            <p>{{ member.email or '—' }}</p>
+            <p class="text-xs text-gray-400 dark:text-slate-500">{{ member.phone or '' }}</p>
+          </td>
+          <td class="px-4 py-3 text-gray-600 dark:text-slate-300">
+            {{ member.trainer.name if member.trainer else '—' }}
+          </td>
+          <td class="px-4 py-3 text-gray-500 dark:text-slate-400">
+            {{ member.joining_date.strftime('%b %d, %Y') }}
+          </td>
+          <td class="px-4 py-3">
+            {% set am = member.active_membership %}
+            {% if am %}
+              <span class="text-xs font-medium text-gray-700 dark:text-slate-300">{{ am.plan.name }}</span>
+              <p class="text-xs text-gray-400 dark:text-slate-500">
+                expires {{ am.end_date.strftime('%b %d') }}
+                {% if am.is_expiring_soon %}
+                <span class="text-amber-600 dark:text-amber-400 font-medium">⚠</span>
+                {% endif %}
+              </p>
+            {% else %}
+              <span class="text-xs text-gray-400 dark:text-slate-500">No active plan</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3">
+            <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium
+              {% if member.status == 'active' %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400
+              {% elif member.status == 'suspended' %}bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400
+              {% else %}bg-gray-100 dark:bg-slate-600 text-gray-500 dark:text-slate-400{% endif %}">
+              {{ member.status|capitalize }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-right">
+            <div class="flex items-center justify-end gap-2">
+              <a href="{{ url_for('members.detail', member_id=member.id) }}"
+                 class="text-gray-400 dark:text-slate-500 hover:text-green-700 dark:hover:text-green-400 transition-colors" title="View">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+              </a>
+              <a href="{{ url_for('members.edit', member_id=member.id) }}"
+                 class="text-gray-400 dark:text-slate-500 hover:text-green-700 dark:hover:text-green-400 transition-colors" title="Edit">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
+              </a>
+              {% if current_user.is_super_admin %}
+              <form method="POST" action="{{ url_for('members.delete', member_id=member.id) }}"
+                    onsubmit="return confirm('Delete {{ member.full_name }}? This cannot be undone.')">
+                <button type="submit" class="text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors" title="Delete">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="py-16 text-center text-gray-400 dark:text-slate-500">
+    <svg class="w-12 h-12 mx-auto mb-3 text-gray-200 dark:text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+    <p class="font-medium">No members found</p>
+    <p class="text-sm mt-1">
+      {% if search or status_filter or trainer_filter %}
+        Try adjusting your filters.
+      {% else %}
+        <a href="{{ url_for('members.new') }}" class="text-green-700 dark:text-green-400 hover:underline">Add your first member</a>
+      {% endif %}
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

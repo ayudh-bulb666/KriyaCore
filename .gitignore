@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+env/
+
+# Database (don't commit the DB — Railway/Render provision their own)
+*.db
+instance/
+
+# macOS
+.DS_Store
