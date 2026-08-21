@@ -1,0 +1,324 @@
+{% extends 'operator/base.html' %}
+{% block title %}Platform Overview{% endblock %}
+
+{% block content %}
+
+<!-- ── Page header ──────────────────────────────────────────────────────────── -->
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="type-h1 text-gray-900 dark:text-white">Platform Overview</h1>
+    <p class="type-p2 text-gray-400 dark:text-slate-500 mt-0.5">{{ today.strftime('%A, %d %B %Y') }}</p>
+  </div>
+  <a href="{{ url_for('operator.new_gym') }}"
+     class="inline-flex items-center gap-2 px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+    </svg>
+    New Gym
+  </a>
+</div>
+
+<!-- ── KPI Cards ─────────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+
+  <!-- Total Gyms -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+        </svg>
+      </div>
+    </div>
+    <p class="text-3xl font-extrabold text-gray-900 dark:text-white">{{ total_gyms }}</p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300 mt-0.5">Total Gyms</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      <span class="text-green-600 dark:text-green-400 font-medium">{{ active_gyms }} active</span>
+      {% if suspended_gyms %} · <span class="text-red-500">{{ suspended_gyms }} suspended</span>{% endif %}
+    </p>
+  </div>
+
+  <!-- Active Members -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-violet-600 dark:text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </div>
+    </div>
+    <p class="text-3xl font-extrabold text-gray-900 dark:text-white">{{ total_members }}</p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300 mt-0.5">Active Members</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">across all gyms</p>
+  </div>
+
+  <!-- Revenue This Month -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+    </div>
+    <p class="text-3xl font-extrabold text-gray-900 dark:text-white">₹{{ "%.0f"|format(total_revenue_month) }}</p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300 mt-0.5">Revenue This Month</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">paid memberships only</p>
+  </div>
+
+  <!-- Active Memberships -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <div class="flex items-start justify-between mb-3">
+      <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+        </svg>
+      </div>
+    </div>
+    <p class="text-3xl font-extrabold text-gray-900 dark:text-white">{{ total_memberships }}</p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300 mt-0.5">Active Memberships</p>
+    <p class="text-xs mt-1 {% if expiring_across %}text-amber-500 font-medium{% else %}text-gray-400 dark:text-slate-500{% endif %}">
+      {% if expiring_across %}{{ expiring_across }} expiring this week{% else %}none expiring this week{% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- ── Charts ─────────────────────────────────────────────────────────────────── -->
+{% if gyms %}
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-6">
+
+  <!-- Members per gym -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <div class="mb-4">
+      <h3 class="type-h3 text-gray-900 dark:text-white">Members per Gym</h3>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Active members, ranked highest first</p>
+    </div>
+    <div style="height:{{ [gyms_by_members|length * 42, 120]|max }}px">
+      <canvas id="membersChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Revenue per gym -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <div class="mb-4">
+      <h3 class="type-h3 text-gray-900 dark:text-white">Revenue This Month</h3>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Paid memberships, ranked highest first</p>
+    </div>
+    <div style="height:{{ [gyms_by_revenue|length * 42, 120]|max }}px">
+      <canvas id="revenueChart"></canvas>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Gyms Table ─────────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700">
+    <div>
+      <h3 class="type-h3 text-gray-900 dark:text-white">All Gyms</h3>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">{{ gyms|length }} gym{{ 's' if gyms|length != 1 }} on the platform</p>
+    </div>
+  </div>
+
+  {% if gyms %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
+          <th class="text-left px-5 py-3 type-h4 text-gray-500 dark:text-slate-400">Gym</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Members</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Memberships</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Revenue (Mo.)</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Staff</th>
+          <th class="text-center px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Plan</th>
+          <th class="text-center px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Status</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Created</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700/40">
+        {% for gym in gyms %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors">
+          <!-- Gym identity -->
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <!-- Logo / colour swatch -->
+              <div class="w-9 h-9 rounded-xl overflow-hidden shrink-0 flex items-center justify-center font-bold text-sm"
+                   style="background-color:{{ gym.primary_color or '#166534' }}22; color:{{ gym.primary_color or '#166534' }}; border:1.5px solid {{ gym.primary_color or '#166534' }}44">
+                {% if gym.logo_data %}
+                  <img src="{{ gym.logo_data }}" class="w-full h-full object-cover" alt="">
+                {% else %}
+                  {{ gym.name[0] }}
+                {% endif %}
+              </div>
+              <div class="min-w-0">
+                <a href="{{ url_for('operator.gym_detail', gym_id=gym.id) }}"
+                   class="font-semibold text-gray-900 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                  {{ gym.name }}
+                </a>
+                <p class="type-p3 text-gray-400 dark:text-slate-500 font-mono truncate">/{{ gym.slug }}</p>
+              </div>
+            </div>
+          </td>
+
+          <!-- Members -->
+          <td class="px-4 py-3.5 text-right">
+            <p class="font-bold text-gray-900 dark:text-white">{{ gym.active_member_count }}</p>
+            {% if gym.total_member_count > gym.active_member_count %}
+            <p class="type-p3 text-gray-400 dark:text-slate-500">{{ gym.total_member_count }} total</p>
+            {% endif %}
+          </td>
+
+          <!-- Active memberships -->
+          <td class="px-4 py-3.5 text-right">
+            <p class="font-semibold text-gray-700 dark:text-slate-300">{{ gym.active_memberships }}</p>
+          </td>
+
+          <!-- Revenue -->
+          <td class="px-4 py-3.5 text-right">
+            <p class="font-semibold {% if gym.revenue_month > 0 %}text-emerald-600 dark:text-emerald-400{% else %}text-gray-400 dark:text-slate-500{% endif %}">
+              ₹{{ "%.0f"|format(gym.revenue_month) }}
+            </p>
+          </td>
+
+          <!-- Staff -->
+          <td class="px-4 py-3.5 text-right text-gray-500 dark:text-slate-400 font-medium">{{ gym.staff_count }}</td>
+
+          <!-- Plan -->
+          <td class="px-4 py-3.5 text-center">
+            {% set tier = gym.plan_tier or 'starter' %}
+            <span class="text-xs px-2 py-0.5 rounded-full font-semibold
+              {% if tier == 'pro' %}bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400
+              {% elif tier == 'growth' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+              {% else %}bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400{% endif %}">
+              {{ PLANS[tier]['label'] }}
+            </span>
+          </td>
+
+          <!-- Status -->
+          <td class="px-4 py-3.5 text-center">
+            <span class="text-xs px-2 py-0.5 rounded-full font-semibold
+              {% if gym.is_active %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
+              {% else %}bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400{% endif %}">
+              {{ 'Active' if gym.is_active else 'Suspended' }}
+            </span>
+          </td>
+
+          <!-- Created -->
+          <td class="px-4 py-3.5 type-p3 text-gray-400 dark:text-slate-500 whitespace-nowrap">
+            {{ gym.created_at.strftime('%d %b %Y') }}
+          </td>
+
+          <!-- Actions -->
+          <td class="px-4 py-3.5">
+            <div class="flex items-center justify-end gap-1.5 flex-wrap">
+              <a href="{{ url_for('operator.gym_detail', gym_id=gym.id) }}"
+                 class="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors">
+                View
+              </a>
+              <a href="{{ url_for('operator.edit_gym', gym_id=gym.id) }}"
+                 class="px-2.5 py-1 text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors">
+                Branding
+              </a>
+              {% if gym.is_active and gym.admin %}
+              <form method="POST" action="{{ url_for('operator.impersonate', gym_id=gym.id) }}"
+                    onsubmit="return confirm('Log in as {{ gym.name }}?')">
+                <button type="submit"
+                        class="px-2.5 py-1 text-xs font-medium bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg transition-colors border border-amber-200 dark:border-amber-800">
+                  👁 Log in as
+                </button>
+              </form>
+              {% endif %}
+              <form method="POST" action="{{ url_for('operator.toggle_gym', gym_id=gym.id) }}"
+                    onsubmit="return confirm('{% if gym.is_active %}Suspend{% else %}Activate{% endif %} {{ gym.name }}?')">
+                <button type="submit"
+                        class="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors
+                          {% if gym.is_active %}bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400
+                          {% else %}bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400{% endif %}">
+                  {{ 'Suspend' if gym.is_active else 'Activate' }}
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="text-center py-20">
+    <p class="text-5xl mb-4">🏋️</p>
+    <h3 class="type-h1 text-gray-800 dark:text-white">No gyms yet</h3>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1 mb-4">Create the first gym to get started.</p>
+    <a href="{{ url_for('operator.new_gym') }}"
+       class="inline-flex items-center gap-2 px-5 py-2.5 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors">
+      + New Gym
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% if gyms %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+const isDark     = document.documentElement.classList.contains('dark');
+const gridColor  = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.06)';
+const tickColor  = isDark ? 'rgba(148,163,184,0.7)' : '#9ca3af';
+const tooltipBg  = isDark ? '#1e293b' : '#fff';
+const tooltipTxt = isDark ? '#e2e8f0' : '#1f2937';
+const borderClr  = isDark ? '#334155' : '#e5e7eb';
+
+const chartOpts = (labelCb) => ({
+  responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: tooltipBg, titleColor: tooltipTxt, bodyColor: tooltipTxt,
+      borderColor: borderClr, borderWidth: 1,
+      callbacks: { label: labelCb }
+    }
+  },
+  scales: {
+    x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 11 } } },
+    y: { grid: { display: false }, ticks: { color: tickColor, font: { size: 12 }, mirror: false } }
+  }
+});
+
+// ── Members chart ──────────────────────────────────────────────────────────
+new Chart(document.getElementById('membersChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ gyms_by_members | map(attribute='name') | list | tojson }},
+    datasets: [{
+      data: {{ gyms_by_members | map(attribute='active_member_count') | list | tojson }},
+      backgroundColor: isDark ? 'rgba(99,102,241,0.75)' : '#6366f1',
+      hoverBackgroundColor: '#4f46e5',
+      borderRadius: 6, borderSkipped: false,
+    }]
+  },
+  options: chartOpts(ctx => ' ' + ctx.raw + ' members')
+});
+
+// ── Revenue chart ──────────────────────────────────────────────────────────
+new Chart(document.getElementById('revenueChart'), {
+  type: 'bar',
+  data: {
+    labels: {{ gyms_by_revenue | map(attribute='name') | list | tojson }},
+    datasets: [{
+      data: {{ gyms_by_revenue | map(attribute='revenue_month') | list | tojson }},
+      backgroundColor: isDark ? 'rgba(16,185,129,0.75)' : '#10b981',
+      hoverBackgroundColor: '#059669',
+      borderRadius: 6, borderSkipped: false,
+    }]
+  },
+  options: chartOpts(ctx => ' ₹' + ctx.raw.toFixed(0))
+});
+</script>
+{% endif %}
+
+{% endblock %}

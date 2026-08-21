@@ -4,7 +4,7 @@
 
 {% block header_actions %}
 <a href="{{ url_for('members.new') }}"
-   class="inline-flex items-center gap-1.5 px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-medium rounded-lg transition-colors shadow-sm">
+   class="inline-flex items-center gap-1.5 px-4 py-2 btn-brand text-sm font-medium rounded-lg transition-colors shadow-sm">
   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
   </svg>
@@ -15,15 +15,15 @@
 {% block content %}
 <!-- Page heading -->
 <div class="mb-6">
-  <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Good to see you 👋</h2>
-  <p class="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Here's what's happening at your gym today.</p>
+  <h2 class="type-display text-gray-900 dark:text-white">Good to see you 👋</h2>
+  <p class="type-p2 text-gray-500 dark:text-slate-400 mt-0.5">Here's what's happening at your gym today.</p>
 </div>
 
 <!-- ── Stat Cards ──────────────────────────────────────────────────────────── -->
 <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
 
-  <!-- Hero card — Total Members (dark green) -->
-  <div class="xl:col-span-1 relative bg-green-800 rounded-2xl p-5 overflow-hidden shadow-lg group">
+  <!-- Hero card — Total Members (brand colour) -->
+  <div class="xl:col-span-1 relative rounded-2xl p-5 overflow-hidden shadow-lg group bg-brand-dark" style="background-color:var(--brand-dark)">
     <!-- decorative circles -->
     <div class="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/5"></div>
     <div class="absolute -bottom-8 -right-2 w-32 h-32 rounded-full bg-white/5"></div>
@@ -67,7 +67,7 @@
     </div>
     <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">{{ stats.new_this_month }}</p>
     <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">New This Month</p>
-    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">New sign-ups in {{ now.strftime('%B') }}</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">New sign-ups in {{ now.strftime('%B') }}</p>
   </div>
 
   <!-- Card — Expiring Soon -->
@@ -130,7 +130,7 @@
     </div>
     <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">{{ stats.checkins_today }}</p>
     <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Check-ins Today</p>
-    <p class="text-xs text-gray-400 dark:text-slate-500 mt-1">{{ stats.currently_in }} currently in gym</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">{{ stats.currently_in }} currently in gym</p>
   </div>
 
 </div>
@@ -143,9 +143,9 @@
     <div class="flex items-center justify-between mb-5">
       <div>
         <h3 class="text-base font-bold text-gray-900 dark:text-white">Revenue Overview</h3>
-        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Monthly paid membership revenue</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Monthly paid membership revenue</p>
       </div>
-      <span class="text-xs font-semibold text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2.5 py-1 rounded-full">Last 6 months</span>
+      <span class="chip-brand text-xs font-semibold px-2.5 py-1 rounded-full border">Last 6 months</span>
     </div>
     <div class="h-52">
       <canvas id="revenueChart"></canvas>
@@ -157,7 +157,7 @@
     <div class="flex items-center justify-between mb-4">
       <div>
         <h3 class="text-base font-bold text-gray-900 dark:text-white">Renewals Due</h3>
-        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Next 7 days</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Next 7 days</p>
       </div>
       {% if renewal_alerts %}
       <span class="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">{{ renewal_alerts|length }}</span>
@@ -169,14 +169,14 @@
       {% for alert in renewal_alerts[:6] %}
       <a href="{{ url_for('members.detail', member_id=alert.member_id) }}"
          class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors group">
-        <div class="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-800 dark:text-green-400 text-xs font-bold shrink-0">
+        <div class="w-8 h-8 rounded-full avatar-brand flex items-center justify-center text-xs font-bold shrink-0">
           {{ alert.member.first_name[0] }}{{ alert.member.last_name[0] }}
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors">
+          <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate group-hover-brand transition-colors">
             {{ alert.member.full_name }}
           </p>
-          <p class="text-xs text-gray-400 dark:text-slate-500 truncate">{{ alert.plan.name }}</p>
+          <p class="type-p3 text-gray-400 dark:text-slate-500 truncate">{{ alert.plan.name }}</p>
         </div>
         <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded
           {% if alert.days_left <= 1 %}text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-900/30
@@ -191,7 +191,7 @@
     </div>
     {% if renewal_alerts|length > 6 %}
     <a href="{{ url_for('reminders.index') }}"
-       class="mt-3 text-xs font-medium text-green-700 dark:text-green-400 hover:underline">
+       class="mt-3 text-xs font-medium link-brand">
       View all {{ renewal_alerts|length }} →
     </a>
     {% endif %}
@@ -203,7 +203,7 @@
         </svg>
       </div>
       <p class="text-sm font-medium text-gray-700 dark:text-slate-300">All good!</p>
-      <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">No renewals in the next 7 days</p>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">No renewals in the next 7 days</p>
     </div>
     {% endif %}
   </div>
@@ -217,23 +217,23 @@
     <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700">
       <div>
         <h3 class="text-base font-bold text-gray-900 dark:text-white">Recent Members</h3>
-        <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Latest sign-ups</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Latest sign-ups</p>
       </div>
       <a href="{{ url_for('members.index') }}"
-         class="text-sm font-medium text-green-700 dark:text-green-400 hover:underline">View all →</a>
+         class="text-sm font-medium link-brand">View all →</a>
     </div>
     <div class="divide-y divide-gray-50 dark:divide-slate-700/50">
       {% for member in recent_members %}
       <a href="{{ url_for('members.detail', member_id=member.id) }}"
          class="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors group">
-        <div class="w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center text-green-800 dark:text-green-400 text-sm font-bold shrink-0">
+        <div class="w-9 h-9 rounded-full avatar-brand flex items-center justify-center text-sm font-bold shrink-0">
           {{ member.first_name[0] }}{{ member.last_name[0] }}
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors">
+          <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 group-hover-brand transition-colors">
             {{ member.full_name }}
           </p>
-          <p class="text-xs text-gray-400 dark:text-slate-500 truncate">{{ member.email or member.phone or '—' }}</p>
+          <p class="type-p3 text-gray-400 dark:text-slate-500 truncate">{{ member.email or member.phone or '—' }}</p>
         </div>
         <div class="text-right shrink-0">
           <span class="inline-block text-xs px-2 py-0.5 rounded-full font-medium
@@ -242,13 +242,13 @@
             {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400{% endif %}">
             {{ member.status }}
           </span>
-          <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">
+          <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
             {{ member.joining_date.strftime('%b %d') if member.joining_date else '—' }}
           </p>
         </div>
       </a>
       {% else %}
-      <div class="px-6 py-10 text-center text-sm text-gray-400 dark:text-slate-500">No members yet.</div>
+      <div class="px-6 py-10 text-center type-p2 text-gray-400 dark:text-slate-500">No members yet.</div>
       {% endfor %}
     </div>
   </div>
@@ -257,7 +257,7 @@
   <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6">
     <div class="mb-4">
       <h3 class="text-base font-bold text-gray-900 dark:text-white">Plan Distribution</h3>
-      <p class="text-xs text-gray-400 dark:text-slate-500 mt-0.5">Active memberships by plan</p>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Active memberships by plan</p>
     </div>
     <div class="h-40 flex items-center justify-center">
       <canvas id="planChart"></canvas>
@@ -277,19 +277,51 @@ const tickColor  = isDark ? 'rgba(148,163,184,0.7)'  : '#9ca3af';
 const tooltipBg  = isDark ? '#1e293b' : '#fff';
 const tooltipTxt = isDark ? '#e2e8f0' : '#1f2937';
 
-// Revenue Bar Chart
+// ── Read the gym's brand colour from the CSS variable ────────────────────────
+const brandHex = getComputedStyle(document.documentElement)
+                   .getPropertyValue('--brand').trim() || '#166534';
+
+// Darken a hex colour by a fraction (0–1)
+function darken(hex, pct) {
+  const n = parseInt(hex.replace('#',''), 16);
+  const r = Math.max(0, Math.round(((n >> 16) & 255) * (1 - pct)));
+  const g = Math.max(0, Math.round(((n >>  8) & 255) * (1 - pct)));
+  const b = Math.max(0, Math.round(( n        & 255) * (1 - pct)));
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+// Hex → rgba string
+function hexA(hex, alpha) {
+  const n = parseInt(hex.replace('#',''), 16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;
+}
+
+// Bar chart colours — brand fill, darker on hover
+const barFill  = isDark ? hexA(brandHex, 0.8) : brandHex;
+const barHover = darken(brandHex, 0.18);
+
+// Donut palette — brand at full opacity, then progressively lighter
+const brandPalette = [
+  brandHex,
+  hexA(brandHex, 0.72),
+  hexA(brandHex, 0.50),
+  hexA(brandHex, 0.32),
+  hexA(brandHex, 0.18),
+];
+
+// ── Revenue Bar Chart ────────────────────────────────────────────────────────
 const revenueCtx = document.getElementById('revenueChart').getContext('2d');
 new Chart(revenueCtx, {
   type: 'bar',
   data: {
     labels: {{ revenue_labels | tojson }},
     datasets: [{
-      label: 'Revenue ($)',
+      label: 'Revenue (₹)',
       data: {{ revenue_data | tojson }},
-      backgroundColor: isDark ? 'rgba(22,101,52,0.8)' : '#166534',
+      backgroundColor: barFill,
       borderRadius: 8,
       borderSkipped: false,
-      hoverBackgroundColor: isDark ? '#22c55e' : '#15803d',
+      hoverBackgroundColor: barHover,
     }]
   },
   options: {
@@ -313,10 +345,9 @@ new Chart(revenueCtx, {
   }
 });
 
-// Plan Donut Chart
+// ── Plan Donut Chart ─────────────────────────────────────────────────────────
 const planLabels = {{ plan_labels | tojson }};
 const planData   = {{ plan_data   | tojson }};
-const greenPalette = ['#166534','#16a34a','#4ade80','#bbf7d0','#052e16'];
 const planCtx = document.getElementById('planChart').getContext('2d');
 new Chart(planCtx, {
   type: 'doughnut',
@@ -324,7 +355,7 @@ new Chart(planCtx, {
     labels: planLabels,
     datasets: [{
       data: planData,
-      backgroundColor: greenPalette.slice(0, planLabels.length),
+      backgroundColor: brandPalette.slice(0, planLabels.length),
       borderWidth: 3,
       borderColor: isDark ? '#1e293b' : '#ffffff',
       hoverOffset: 4
@@ -347,14 +378,14 @@ new Chart(planCtx, {
   }
 });
 
-// Legend
+// Legend swatches
 const legend = document.getElementById('planLegend');
 planLabels.forEach((lbl, i) => {
   const el = document.createElement('div');
   el.className = 'flex items-center justify-between text-xs';
   el.innerHTML = `
     <div class="flex items-center gap-2">
-      <span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background:${greenPalette[i]}"></span>
+      <span class="w-2.5 h-2.5 rounded-sm shrink-0" style="background:${brandPalette[i]}"></span>
       <span class="text-gray-600 dark:text-slate-400">${lbl}</span>
     </div>
     <span class="font-semibold text-gray-800 dark:text-slate-200">${planData[i]}</span>

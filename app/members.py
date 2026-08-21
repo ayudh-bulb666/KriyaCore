@@ -6,6 +6,7 @@ from datetime import date
 
 from .models import db, Member, User, MemberMembership
 from .helpers import role_required
+from .plans import plan_within_member_limit, PLANS
 
 members_bp = Blueprint('members', __name__, url_prefix='/members')
 
@@ -13,11 +14,12 @@ members_bp = Blueprint('members', __name__, url_prefix='/members')
 @members_bp.route('/')
 @login_required
 def index():
-    search = request.args.get('search', '').strip()
-    status_filter = request.args.get('status', '')
+    gid            = current_user.gym_id
+    search         = request.args.get('search', '').strip()
+    status_filter  = request.args.get('status', '')
     trainer_filter = request.args.get('trainer', '')
 
-    query = Member.query
+    query = Member.query.filter_by(gym_id=gid)
 
     if search:
         like = f'%{search}%'
@@ -39,8 +41,8 @@ def index():
         else:
             query = query.filter_by(assigned_trainer_id=int(trainer_filter))
 
-    members = query.order_by(Member.first_name.asc()).all()
-    trainers = User.query.filter_by(role='staff').order_by(User.name).all()
+    members  = query.order_by(Member.first_name.asc()).all()
+    trainers = User.query.filter_by(gym_id=gid, role='staff').order_by(User.name).all()
 
     return render_template(
         'members/index.html',
@@ -55,27 +57,37 @@ def index():
 @members_bp.route('/new', methods=['GET', 'POST'])
 @login_required
 def new():
-    trainers = User.query.filter_by(role='staff').order_by(User.name).all()
+    gid      = current_user.gym_id
+    trainers = User.query.filter_by(gym_id=gid, role='staff').order_by(User.name).all()
+
+    # Plan limit check
+    gym = current_user.gym
+    if not plan_within_member_limit(gym):
+        tier = gym.plan_tier or 'starter'
+        limit = PLANS[tier]['max_members']
+        flash(f'Member limit reached ({limit} on {PLANS[tier]["label"]} plan). Upgrade to add more members.', 'danger')
+        return redirect(url_for('members.index'))
 
     if request.method == 'POST':
-        first_name = request.form.get('first_name', '').strip()
-        last_name = request.form.get('last_name', '').strip()
-        email = request.form.get('email', '').strip()
-        phone = request.form.get('phone', '').strip()
-        dob_str = request.form.get('date_of_birth', '')
+        first_name  = request.form.get('first_name', '').strip()
+        last_name   = request.form.get('last_name', '').strip()
+        email       = request.form.get('email', '').strip()
+        phone       = request.form.get('phone', '').strip()
+        dob_str     = request.form.get('date_of_birth', '')
         joining_str = request.form.get('joining_date', '')
-        trainer_id = request.form.get('assigned_trainer_id') or None
-        status = request.form.get('status', 'active')
-        notes = request.form.get('notes', '').strip()
+        trainer_id  = request.form.get('assigned_trainer_id') or None
+        status      = request.form.get('status', 'active')
+        notes       = request.form.get('notes', '').strip()
 
         if not first_name or not last_name or not joining_str:
             flash('First name, last name, and joining date are required.', 'danger')
             return render_template('members/new.html', trainers=trainers)
 
-        dob = date.fromisoformat(dob_str) if dob_str else None
+        dob     = date.fromisoformat(dob_str) if dob_str else None
         joining = date.fromisoformat(joining_str)
 
         member = Member(
+            gym_id=gid,
             first_name=first_name,
             last_name=last_name,
             email=email,
@@ -97,34 +109,35 @@ def new():
 @members_bp.route('/<int:member_id>')
 @login_required
 def detail(member_id):
-    member = Member.query.get_or_404(member_id)
+    member = Member.query.filter_by(id=member_id, gym_id=current_user.gym_id).first_or_404()
     return render_template('members/detail.html', member=member, today=date.today())
 
 
 @members_bp.route('/<int:member_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit(member_id):
-    member = Member.query.get_or_404(member_id)
-    trainers = User.query.filter_by(role='staff').order_by(User.name).all()
+    gid      = current_user.gym_id
+    member   = Member.query.filter_by(id=member_id, gym_id=gid).first_or_404()
+    trainers = User.query.filter_by(gym_id=gid, role='staff').order_by(User.name).all()
 
     if request.method == 'POST':
         member.first_name = request.form.get('first_name', '').strip()
-        member.last_name = request.form.get('last_name', '').strip()
-        member.email = request.form.get('email', '').strip()
-        member.phone = request.form.get('phone', '').strip()
-        dob_str = request.form.get('date_of_birth', '')
-        joining_str = request.form.get('joining_date', '')
-        trainer_id = request.form.get('assigned_trainer_id') or None
-        member.status = request.form.get('status', 'active')
-        member.notes = request.form.get('notes', '').strip()
+        member.last_name  = request.form.get('last_name', '').strip()
+        member.email      = request.form.get('email', '').strip()
+        member.phone      = request.form.get('phone', '').strip()
+        dob_str           = request.form.get('date_of_birth', '')
+        joining_str       = request.form.get('joining_date', '')
+        trainer_id        = request.form.get('assigned_trainer_id') or None
+        member.status     = request.form.get('status', 'active')
+        member.notes      = request.form.get('notes', '').strip()
 
         if not member.first_name or not member.last_name or not joining_str:
             flash('First name, last name, and joining date are required.', 'danger')
             return render_template('members/edit.html', member=member, trainers=trainers)
 
-        member.date_of_birth = date.fromisoformat(dob_str) if dob_str else None
-        member.joining_date = date.fromisoformat(joining_str)
-        member.assigned_trainer_id = int(trainer_id) if trainer_id else None
+        member.date_of_birth        = date.fromisoformat(dob_str) if dob_str else None
+        member.joining_date         = date.fromisoformat(joining_str)
+        member.assigned_trainer_id  = int(trainer_id) if trainer_id else None
 
         db.session.commit()
         flash(f'{member.full_name} has been updated.', 'success')
@@ -136,12 +149,12 @@ def edit(member_id):
 @members_bp.route('/export.csv')
 @login_required
 def export_csv():
-    """Export member list as CSV, respecting current search/filter params."""
-    search = request.args.get('search', '').strip()
-    status_filter = request.args.get('status', '')
+    gid            = current_user.gym_id
+    search         = request.args.get('search', '').strip()
+    status_filter  = request.args.get('status', '')
     trainer_filter = request.args.get('trainer', '')
 
-    query = Member.query
+    query = Member.query.filter_by(gym_id=gid)
     if search:
         like = f'%{search}%'
         query = query.filter(db.or_(
@@ -190,10 +203,9 @@ def export_csv():
 @login_required
 @role_required('super_admin')
 def delete(member_id):
-    member = Member.query.get_or_404(member_id)
-    name = member.full_name
+    member = Member.query.filter_by(id=member_id, gym_id=current_user.gym_id).first_or_404()
+    name   = member.full_name
 
-    # Delete associated memberships first
     MemberMembership.query.filter_by(member_id=member_id).delete()
     db.session.delete(member)
     db.session.commit()

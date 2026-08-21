@@ -6,36 +6,88 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}GYMPro{% endblock %} — GYMPro</title>
+  <title>{% block title %}GYMPro{% endblock %} — {{ current_gym.name if current_gym else 'GYMPro' }}</title>
 
   <!-- PWA -->
   <link rel="manifest" href="/static/manifest.json" />
-  <meta name="theme-color" content="#166534" />
+  <meta name="theme-color" content="{{ current_gym.primary_color if current_gym and current_gym.primary_color else '#166534' }}" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="GYMPro" />
+  <meta name="apple-mobile-web-app-title" content="{{ current_gym.name if current_gym else 'GYMPro' }}" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
   <script>if (localStorage.getItem('gympro-dark') === 'true') document.documentElement.classList.add('dark');</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: { DEFAULT: '#166534', dark: '#14532d', light: '#22c55e' }
-          }
-        }
-      }
+      theme: { extend: { fontFamily: { sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'] } } }
     }
   </script>
+
+  <!-- ── Brand CSS variables ─────────────────────────────────────────────── -->
   <style>
+    :root {
+      --brand:      {{ current_gym.primary_color if current_gym and current_gym.primary_color else '#166534' }};
+      --brand-dark: color-mix(in srgb, var(--brand) 78%, black);
+      --brand-bg:   color-mix(in srgb, var(--brand) 10%, white);
+      --brand-bg-d: color-mix(in srgb, var(--brand) 22%, #0f172a);
+    }
+
     [x-cloak] { display: none !important; }
 
-    /* ── Nav link base ─────────────────────────────────────────────── */
+    /* ── Utility brand classes (override Tailwind where needed) ─────────── */
+    .bg-brand         { background-color: var(--brand) !important; }
+    .bg-brand-dark    { background-color: var(--brand-dark) !important; }
+    .text-brand       { color: var(--brand) !important; }
+    .border-brand     { border-color: var(--brand) !important; }
+
+    /* Primary filled button */
+    .btn-brand        { background-color: var(--brand) !important; color: #fff !important; }
+    .btn-brand:hover  { filter: brightness(0.87); }
+
+    /* Soft tinted button (e.g. Mark Paid, Renew) */
+    .btn-brand-soft   { background-color: color-mix(in srgb, var(--brand) 12%, white) !important; color: var(--brand) !important; }
+    .btn-brand-soft:hover { background-color: color-mix(in srgb, var(--brand) 22%, white) !important; }
+    .dark .btn-brand-soft { background-color: color-mix(in srgb, var(--brand) 22%, #0f172a) !important; color: color-mix(in srgb, var(--brand) 70%, white) !important; }
+    .dark .btn-brand-soft:hover { background-color: color-mix(in srgb, var(--brand) 32%, #0f172a) !important; }
+
+    /* Avatar / initials bubble */
+    .avatar-brand     { background-color: color-mix(in srgb, var(--brand) 14%, white); color: var(--brand); }
+    .dark .avatar-brand { background-color: color-mix(in srgb, var(--brand) 22%, #0f172a); color: color-mix(in srgb, var(--brand) 65%, white); }
+
+    /* Text links */
+    .link-brand       { color: var(--brand) !important; }
+    .link-brand:hover { text-decoration: underline; }
+
+    /* Hover colour — standalone and group */
+    .hover-brand:hover           { color: var(--brand) !important; }
+    .group:hover .group-hover-brand { color: var(--brand) !important; }
+
+    /* Form focus ring */
+    .focus-brand:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 28%, transparent); }
+
+    /* Live / unread dot */
+    .dot-brand        { background-color: var(--brand) !important; }
+
+    /* Light chip / inline badge */
+    .chip-brand       { background-color: color-mix(in srgb, var(--brand) 10%, white); color: var(--brand); border-color: color-mix(in srgb, var(--brand) 25%, white); }
+    .dark .chip-brand { background-color: color-mix(in srgb, var(--brand) 20%, #0f172a); color: color-mix(in srgb, var(--brand) 65%, white); border-color: color-mix(in srgb, var(--brand) 28%, #0f172a); }
+
+    /* Hover background brand tint */
+    .hover-bg-brand:hover { background-color: var(--brand-bg) !important; }
+
+    /* Plan selection card */
+    .plan-card:hover { border-color: color-mix(in srgb, var(--brand) 40%, #e5e7eb) !important; background-color: var(--brand-bg) !important; }
+    .plan-card:has(:checked) { border-color: var(--brand) !important; background-color: var(--brand-bg) !important; }
+    .dark .plan-card:has(:checked) { background-color: var(--brand-bg-d) !important; border-color: var(--brand) !important; }
+
+    /* ── Nav link base ──────────────────────────────────────────────────── */
     .nav-link {
       display: flex; align-items: center; gap: 12px;
       padding: 9px 12px;
@@ -43,17 +95,15 @@
       font-size: 0.875rem; font-weight: 500;
       transition: all 0.15s ease;
     }
-
-    /* Light mode — inactive */
     .nav-link:not(.active) { color: #4b5563; }
     .nav-link:not(.active):hover { background-color: #f3f4f6; color: #111827; }
 
-    /* Light mode — active (left accent via inset shadow) */
+    /* Light mode — active (brand left accent) */
     .nav-link.active {
-      color: #166534;
-      background-color: #f0fdf4;
+      color: var(--brand);
+      background-color: var(--brand-bg);
       font-weight: 600;
-      box-shadow: inset 3px 0 0 0 #166534;
+      box-shadow: inset 3px 0 0 0 var(--brand);
       border-radius: 0 8px 8px 0;
     }
 
@@ -61,17 +111,103 @@
     .dark .nav-link:not(.active) { color: rgba(255,255,255,0.80); }
     .dark .nav-link:not(.active):hover { background-color: rgb(51,65,85); color: #fff; }
 
-    /* Dark mode — active */
+    /* Dark mode — active (solid brand pill) */
     .dark .nav-link.active {
-      background-color: #166534;
+      background-color: var(--brand);
       color: white;
       box-shadow: none;
       border-radius: 8px;
+    }
+
+    /* ── Typography scale ────────────────────────────────────────────────
+     *  Size + weight only. Colour is always set separately with Tailwind.
+     *  Edit these values to restyle the entire product at once.
+     * ──────────────────────────────────────────────────────────────────── */
+
+    /* Headings */
+    .type-h1 {
+      font-size: 1.375rem;     /* 22 px */
+      line-height: 1.875rem;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+    }
+    .type-h2 {
+      font-size: 1.0625rem;    /* 17 px */
+      line-height: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.008em;
+    }
+    .type-h3 {
+      font-size: 0.9375rem;    /* 15 px */
+      line-height: 1.375rem;
+      font-weight: 600;
+    }
+    .type-h4 {
+      font-size: 0.6875rem;    /* 11 px */
+      line-height: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    /* Body */
+    .type-p1 {
+      font-size: 0.9375rem;    /* 15 px */
+      line-height: 1.5rem;
+      font-weight: 400;
+    }
+    .type-p2 {
+      font-size: 0.875rem;     /* 14 px — default UI text */
+      line-height: 1.375rem;
+      font-weight: 400;
+    }
+    .type-p3 {
+      font-size: 0.75rem;      /* 12 px — captions, timestamps, helper text */
+      line-height: 1.125rem;
+      font-weight: 400;
+    }
+
+    /* Display — KPI numbers, big stats */
+    .type-display {
+      font-size: 2.25rem;      /* 36 px */
+      line-height: 2.75rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      font-variant-numeric: tabular-nums;
     }
   </style>
 </head>
 
 <body class="h-full bg-gray-50 dark:bg-slate-950 transition-colors" x-data="{ sidebarOpen: false }">
+
+{% if is_impersonating %}
+<!-- ── Impersonation Banner ───────────────────────────────────────────── -->
+<div class="sticky top-0 z-50 bg-amber-400 text-amber-900 px-4 py-2 flex items-center justify-between shadow-sm">
+  <div class="flex items-center gap-2 text-sm font-medium">
+    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      <path stroke-linecap="round" stroke-linejoin="round"
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+    </svg>
+    <span>
+      Viewing as <strong>{{ current_user.name }}</strong>
+      {% if current_gym %} — <strong>{{ current_gym.name }}</strong>{% endif %}
+    </span>
+    <span class="text-amber-700 text-xs hidden sm:inline">· Any changes you make will affect real data</span>
+  </div>
+  <form method="POST" action="{{ url_for('operator.exit_impersonation') }}">
+    <button type="submit"
+            class="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-amber-900/15 hover:bg-amber-900/25 text-amber-900 rounded-lg transition-colors border border-amber-900/20">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+      </svg>
+      Exit impersonation
+    </button>
+  </form>
+</div>
+{% endif %}
 
 <!-- Mobile backdrop -->
 <div x-show="sidebarOpen" x-cloak
@@ -86,14 +222,25 @@
          transition-transform duration-200 lg:translate-x-0"
   :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'"
 >
-  <!-- Logo -->
+  <!-- Logo / Gym identity -->
   <div class="flex items-center gap-2.5 px-6 py-5 border-b border-gray-100 dark:border-slate-800">
-    <div class="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center shadow-sm">
-      <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43z"/>
-      </svg>
+    {% if current_gym and current_gym.logo_data %}
+      <img src="{{ current_gym.logo_data }}"
+           class="w-8 h-8 rounded-lg object-cover shrink-0 shadow-sm"
+           alt="{{ current_gym.name }} logo">
+    {% else %}
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm shrink-0 bg-brand">
+        <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43z"/>
+        </svg>
+      </div>
+    {% endif %}
+    <div class="min-w-0">
+      <span class="text-gray-900 dark:text-white font-bold text-sm tracking-tight block truncate">
+        {% if current_gym %}{{ current_gym.name }}{% else %}GYMPro{% endif %}
+      </span>
+      <span class="text-gray-400 dark:text-slate-500 text-xs">powered by GYMPro</span>
     </div>
-    <span class="text-gray-900 dark:text-white font-bold text-lg tracking-tight">GYMPro</span>
   </div>
 
   <!-- Nav -->
@@ -102,7 +249,7 @@
 
     <a href="{{ url_for('dashboard.index') }}"
        class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
-      <svg class="w-4.5 h-4.5 shrink-0" style="width:18px;height:18px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="shrink-0" style="width:18px;height:18px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
       </svg>
@@ -118,6 +265,7 @@
       Members
     </a>
 
+    {% if plan_features.get('attendance', True) %}
     <a href="{{ url_for('attendance.index') }}"
        class="nav-link {% if 'attendance' in request.endpoint %}active{% endif %}">
       <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,6 +274,16 @@
       </svg>
       Attendance
     </a>
+    {% else %}
+    <span class="nav-link opacity-40 cursor-not-allowed" title="Upgrade to Growth or Pro">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+      </svg>
+      Attendance
+      <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full uppercase tracking-wide">Pro</span>
+    </span>
+    {% endif %}
 
     <a href="{{ url_for('billing.index') }}"
        class="nav-link {% if 'billing' in request.endpoint %}active{% endif %}">
@@ -135,6 +293,33 @@
       </svg>
       Billing
     </a>
+
+    {% if plan_features.get('notifications', True) %}
+    <a href="{{ url_for('notifications.index') }}"
+       class="nav-link {% if 'notifications' in request.endpoint %}active{% endif %}">
+      <span class="relative shrink-0" style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center">
+        <svg style="width:18px;height:18px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+        </svg>
+        {% if notif_badge > 0 %}
+        <span class="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 bg-red-500 rounded-full text-white text-[9px] font-bold flex items-center justify-center leading-none">
+          {{ notif_badge if notif_badge <= 9 else '9+' }}
+        </span>
+        {% endif %}
+      </span>
+      Notifications
+    </a>
+    {% else %}
+    <span class="nav-link opacity-40 cursor-not-allowed" title="Upgrade to Growth or Pro">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+      </svg>
+      Notifications
+      <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full uppercase tracking-wide">Pro</span>
+    </span>
+    {% endif %}
 
     {% if current_user.is_super_admin %}
     <p class="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider px-3 mt-5 mb-2">Admin</p>
@@ -146,6 +331,8 @@
       </svg>
       Staff
     </a>
+
+    {% if plan_features.get('reminders', True) %}
     <a href="{{ url_for('reminders.index') }}"
        class="nav-link {% if 'reminders' in request.endpoint %}active{% endif %}">
       <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,22 +341,67 @@
       </svg>
       Reminders
     </a>
+    {% else %}
+    <span class="nav-link opacity-40 cursor-not-allowed" title="Upgrade to Pro">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+      </svg>
+      Reminders
+      <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 rounded-full uppercase tracking-wide">Pro</span>
+    </span>
+    {% endif %}
+    {% endif %}
+
+    {% if plan %}
+    <!-- Plan badge in sidebar footer -->
     {% endif %}
   </nav>
+
+  <!-- Plan badge -->
+  {% if plan %}
+  <div class="px-4 pb-1">
+    <div class="flex items-center justify-between px-3 py-2 rounded-lg
+      {% if current_gym and current_gym.plan_tier == 'pro' %}bg-violet-50 dark:bg-violet-900/20
+      {% elif current_gym and current_gym.plan_tier == 'growth' %}bg-blue-50 dark:bg-blue-900/20
+      {% else %}bg-gray-50 dark:bg-slate-800{% endif %}">
+      <div>
+        <p class="text-xs font-bold
+          {% if current_gym and current_gym.plan_tier == 'pro' %}text-violet-700 dark:text-violet-400
+          {% elif current_gym and current_gym.plan_tier == 'growth' %}text-blue-700 dark:text-blue-400
+          {% else %}text-gray-600 dark:text-slate-400{% endif %}">
+          {{ plan.label }} plan
+        </p>
+        <p class="text-[10px] text-gray-400 dark:text-slate-500">{{ plan.price_label }}</p>
+      </div>
+      {% if current_gym and current_gym.plan_tier != 'pro' %}
+      <span class="text-[9px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full uppercase tracking-wide">Upgrade</span>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
 
   <!-- User footer -->
   <div class="px-3 py-4 border-t border-gray-100 dark:border-slate-800">
     <div class="flex items-center gap-3 px-3 py-2 rounded-lg">
-      <div class="w-8 h-8 rounded-full bg-green-700 flex items-center justify-center text-white text-xs font-bold shrink-0">
+      <div class="w-8 h-8 rounded-full bg-brand flex items-center justify-center text-white text-xs font-bold shrink-0">
         {{ current_user.name[:2]|upper }}
       </div>
       <div class="min-w-0">
-        <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ current_user.name }}</p>
-        <p class="text-xs text-gray-400 dark:text-slate-400 capitalize">{{ current_user.role.replace('_', ' ') }}</p>
+        <p class="type-h3 text-gray-900 dark:text-white truncate">{{ current_user.name }}</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-400 capitalize">{{ current_user.role.replace('_', ' ') }}</p>
       </div>
     </div>
-    <a href="{{ url_for('auth.logout') }}"
+    <a href="{{ url_for('auth.change_password') }}"
        class="mt-1 flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-800 dark:hover:text-white">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+      </svg>
+      Change password
+    </a>
+    <a href="{{ url_for('auth.logout') }}"
+       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-800 dark:hover:text-white">
       <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
@@ -189,10 +421,85 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
       </svg>
     </button>
-    <h1 class="text-base font-semibold text-gray-800 dark:text-slate-100">{% block heading %}{% endblock %}</h1>
+    <h1 class="type-h2 text-gray-800 dark:text-slate-100">{% block heading %}{% endblock %}</h1>
 
     <div class="ml-auto flex items-center gap-3">
       {% block header_actions %}{% endblock %}
+
+      <!-- Notification Bell -->
+      <div class="relative" x-data="notifPanel()">
+        <button @click="toggle()"
+                class="relative p-2 rounded-lg text-gray-400 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+          </svg>
+          {% if notif_badge > 0 %}
+          <span class="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-0.5 bg-red-500 rounded-full text-white text-[10px] font-bold flex items-center justify-center leading-none">
+            {{ notif_badge if notif_badge <= 9 else '9+' }}
+          </span>
+          {% endif %}
+        </button>
+
+        <!-- Dropdown -->
+        <div x-show="open" x-cloak
+             @click.outside="open = false"
+             class="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 z-50 overflow-hidden">
+
+          <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-slate-700">
+            <h3 class="type-h3 text-gray-900 dark:text-white">Notifications</h3>
+            <button @click="markAllRead()"
+                    class="text-xs font-medium text-brand hover:underline">
+              Mark all read
+            </button>
+          </div>
+
+          <div class="max-h-80 overflow-y-auto divide-y divide-gray-50 dark:divide-slate-700/30">
+            <div x-show="loading" class="py-8 flex justify-center">
+              <svg class="w-5 h-5 animate-spin text-gray-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+            </div>
+            <div x-show="!loading && items.length === 0" class="py-10 text-center">
+              <p class="text-xl mb-1">🎉</p>
+              <p class="type-p2 text-gray-500 dark:text-slate-400 font-medium">All caught up!</p>
+              <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">No pending notifications</p>
+            </div>
+            <template x-for="(n, i) in items" :key="i">
+              <a :href="n.url"
+                 class="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                     :class="n.type === 'check_in' ? 'bg-green-100 dark:bg-green-900/40' :
+                             n.type === 'expiring' ? 'bg-amber-100 dark:bg-amber-900/40' :
+                             'bg-red-100 dark:bg-red-900/40'">
+                  <svg x-show="n.type === 'check_in'" class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                  </svg>
+                  <svg x-show="n.type === 'expiring'" class="w-4 h-4 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                  </svg>
+                  <svg x-show="n.type === 'unpaid'" class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="type-p2 text-gray-800 dark:text-slate-200 leading-snug" x-text="n.message"></p>
+                  <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5" x-text="n.time"></p>
+                </div>
+                <div x-show="!n.is_read" class="w-2 h-2 rounded-full dot-brand shrink-0 mt-2"></div>
+              </a>
+            </template>
+          </div>
+
+          <div class="px-4 py-2.5 border-t border-gray-100 dark:border-slate-700">
+            <a href="{{ url_for('notifications.index') }}"
+               class="text-xs font-medium text-brand hover:underline">
+              View all notifications →
+            </a>
+          </div>
+        </div>
+      </div>
 
       <!-- Dark mode toggle -->
       <button @click="darkMode = !darkMode"
@@ -241,7 +548,24 @@
 
 {% block scripts %}{% endblock %}
 
-<!-- Service Worker registration -->
+<script>
+function notifPanel() {
+  return {
+    open: false, items: [], loading: false,
+    toggle() { this.open = !this.open; if (this.open && this.items.length === 0) this.load(); },
+    async load() {
+      this.loading = true;
+      try { const r = await fetch('/notifications/api/feed'); this.items = await r.json(); }
+      finally { this.loading = false; }
+    },
+    async markAllRead() {
+      await fetch('/notifications/mark-read', { method: 'POST' });
+      this.items = this.items.map(n => ({ ...n, is_read: true }));
+    }
+  };
+}
+</script>
+
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

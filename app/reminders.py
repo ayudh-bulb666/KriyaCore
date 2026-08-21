@@ -50,10 +50,12 @@ def _send_one(subject, to_email, html_body, cfg):
 
 
 def _expiring_memberships():
+    from flask_login import current_user
     today      = date.today()
     week_later = today + timedelta(days=7)
     return (MemberMembership.query
             .filter(
+                MemberMembership.gym_id   == current_user.gym_id,
                 MemberMembership.status   == 'active',
                 MemberMembership.end_date >= today,
                 MemberMembership.end_date <= week_later,

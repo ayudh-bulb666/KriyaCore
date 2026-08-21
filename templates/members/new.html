@@ -11,13 +11,13 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="first_name">First Name <span class="text-red-500">*</span></label>
           <input id="first_name" name="first_name" type="text" required
-                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus-brand"
                  placeholder="Emma" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="last_name">Last Name <span class="text-red-500">*</span></label>
           <input id="last_name" name="last_name" type="text" required
-                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus-brand"
                  placeholder="Johnson" />
         </div>
       </div>
@@ -26,13 +26,13 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="email">Email</label>
           <input id="email" name="email" type="email"
-                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus-brand"
                  placeholder="emma@example.com" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="phone">Phone</label>
           <input id="phone" name="phone" type="tel"
-                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus-brand"
                  placeholder="555-0100" />
         </div>
       </div>
@@ -41,12 +41,12 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="date_of_birth">Date of Birth</label>
           <input id="date_of_birth" name="date_of_birth" type="date"
-                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand" />
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="joining_date">Joining Date <span class="text-red-500">*</span></label>
           <input id="joining_date" name="joining_date" type="date" required value="{{ today }}"
-                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+                 class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand" />
         </div>
       </div>
 
@@ -54,7 +54,7 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="assigned_trainer_id">Assigned Trainer</label>
           <select id="assigned_trainer_id" name="assigned_trainer_id"
-                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500">
+                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus-brand">
             <option value="">— No trainer —</option>
             {% for trainer in trainers %}
             <option value="{{ trainer.id }}">{{ trainer.name }}</option>
@@ -64,7 +64,7 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="status">Member Status</label>
           <select id="status" name="status"
-                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-green-500">
+                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus-brand">
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="suspended">Suspended</option>
@@ -75,17 +75,17 @@
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="notes">Notes</label>
         <textarea id="notes" name="notes" rows="3"
-                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
+                  class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus-brand resize-none"
                   placeholder="Any notes about this member…"></textarea>
       </div>
 
       <div class="flex items-center gap-3 pt-2">
         <button type="submit"
-                class="px-5 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors shadow">
+                class="px-5 py-2.5 btn-brand text-sm font-medium rounded-lg transition-colors shadow">
           Add Member
         </button>
         <a href="{{ url_for('members.index') }}"
-           class="px-5 py-2.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+           class="px-5 py-2.5 type-p2 text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 rounded-lg border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
           Cancel
         </a>
       </div>

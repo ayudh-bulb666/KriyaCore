@@ -1,0 +1,177 @@
+{% extends 'operator/base.html' %}
+{% block title %}Broadcast{% endblock %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="type-h1 text-gray-900 dark:text-white">Broadcast Announcement</h1>
+    <p class="type-p2 text-gray-400 dark:text-slate-500 mt-0.5">Send a message to one or all gyms' notification feeds</p>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- ── Compose form ──────────────────────────────────────────────────────── -->
+  <div class="lg:col-span-2">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 dark:border-slate-700">
+        <div class="w-9 h-9 bg-blue-100 dark:bg-blue-900/40 rounded-xl flex items-center justify-center text-lg">📢</div>
+        <div>
+          <h2 class="type-h3 text-gray-900 dark:text-white">Compose Announcement</h2>
+          <p class="type-p3 text-gray-400 dark:text-slate-500">Appears in the Notifications page for each target gym</p>
+        </div>
+      </div>
+
+      <form method="POST" action="{{ url_for('operator.broadcast') }}"
+            x-data="{ target: '{{ form.get('target', 'all') }}', charCount: {{ form.get('message', '')|length }} }"
+            class="p-6 space-y-5">
+
+        <!-- Subject -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1.5">
+            Subject <span class="text-red-500">*</span>
+          </label>
+          <input type="text" name="title" required maxlength="120"
+                 value="{{ form.get('title', '') }}"
+                 placeholder="e.g. Scheduled maintenance tonight"
+                 class="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-slate-600 rounded-xl
+                        bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                        focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500">
+        </div>
+
+        <!-- Message -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1.5">
+            Message <span class="text-red-500">*</span>
+          </label>
+          <textarea name="message" required rows="5" maxlength="1000"
+                    x-on:input="charCount = $event.target.value.length"
+                    placeholder="Write your announcement here…"
+                    class="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-slate-600 rounded-xl
+                           bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                           focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 resize-none">{{ form.get('message', '') }}</textarea>
+          <p class="text-right type-p3 text-gray-400 dark:text-slate-500 mt-1">
+            <span x-text="charCount"></span> / 1000
+          </p>
+        </div>
+
+        <!-- Recipients -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Recipients</label>
+          <div class="flex gap-3 mb-3">
+            <label class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border cursor-pointer transition-colors"
+                   :style="target === 'all' ? 'border-color:#3b82f6;background:#eff6ff;' : 'border-color:#e5e7eb;background:white;'"
+                   :class="target === 'all' ? 'dark:bg-blue-950/30 dark:border-blue-600' : 'dark:bg-slate-700 dark:border-slate-600'"
+                   @click="target = 'all'">
+              <input type="radio" name="target" value="all" x-model="target" class="hidden">
+              <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors"
+                   :style="target === 'all' ? 'border-color:#3b82f6;' : 'border-color:#9ca3af;'">
+                <div class="w-2 h-2 rounded-full bg-blue-500 transition-opacity"
+                     :style="target === 'all' ? 'opacity:1;' : 'opacity:0;'"></div>
+              </div>
+              <span class="text-sm font-medium text-gray-700 dark:text-slate-300">
+                All active gyms <span class="text-gray-400 dark:text-slate-500 font-normal">({{ gyms|length }})</span>
+              </span>
+            </label>
+
+            <label class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border cursor-pointer transition-colors"
+                   :style="target === 'select' ? 'border-color:#3b82f6;background:#eff6ff;' : 'border-color:#e5e7eb;background:white;'"
+                   :class="target === 'select' ? 'dark:bg-blue-950/30 dark:border-blue-600' : 'dark:bg-slate-700 dark:border-slate-600'"
+                   @click="target = 'select'">
+              <input type="radio" name="target" value="select" x-model="target" class="hidden">
+              <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors"
+                   :style="target === 'select' ? 'border-color:#3b82f6;' : 'border-color:#9ca3af;'">
+                <div class="w-2 h-2 rounded-full bg-blue-500 transition-opacity"
+                     :style="target === 'select' ? 'opacity:1;' : 'opacity:0;'"></div>
+              </div>
+              <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Selected gyms</span>
+            </label>
+          </div>
+
+          <!-- Multi-select for specific gyms -->
+          <div x-show="target === 'select'" x-cloak
+               class="border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden">
+            <div class="bg-gray-50 dark:bg-slate-700/50 px-4 py-2 border-b border-gray-100 dark:border-slate-700">
+              <p class="text-xs font-semibold text-gray-500 dark:text-slate-400">Select gyms (hold ⌘ / Ctrl to multi-select)</p>
+            </div>
+            <div class="max-h-48 overflow-y-auto p-3 space-y-1">
+              {% for gym in gyms %}
+              <label class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors">
+                <input type="checkbox" name="gym_ids" value="{{ gym.id }}"
+                       {% if form.get('gym_ids') and gym.id|string in form.getlist('gym_ids') %}checked{% endif %}
+                       class="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-blue-600 focus:ring-blue-500">
+                <span class="type-p2 text-gray-700 dark:text-slate-300">{{ gym.name }}</span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview box -->
+        <div class="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl p-4">
+          <p class="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1">Preview — how it will appear in the gym's Notifications page</p>
+          <div class="flex items-start gap-3 mt-2">
+            <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0">📢</div>
+            <div>
+              <p class="text-sm font-semibold text-gray-800 dark:text-slate-200">
+                [Subject line]
+              </p>
+              <p class="type-p2 text-gray-500 dark:text-slate-400 mt-0.5">Message body goes here…</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <a href="{{ url_for('operator.index') }}"
+             class="type-p2 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors">
+            Cancel
+          </a>
+          <button type="submit"
+                  onclick="return confirm('Send this announcement? This cannot be undone.')"
+                  class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+            </svg>
+            Send Announcement
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Sidebar: recent broadcasts ───────────────────────────────────────── -->
+  <div class="lg:col-span-1">
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+        <h2 class="type-h3 text-gray-900 dark:text-white">Recent Broadcasts</h2>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Last 10 announcements sent</p>
+      </div>
+
+      {% if recent %}
+      <div class="divide-y divide-gray-50 dark:divide-slate-700/40">
+        {% for log in recent %}
+        <div class="px-5 py-3.5">
+          <p class="type-p3 font-medium text-gray-700 dark:text-slate-300 leading-snug">
+            {{ log.detail }}
+          </p>
+          <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+            {{ log.created_at.strftime('%d %b %Y · %H:%M') }} UTC
+          </p>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="px-5 py-10 text-center">
+        <p class="text-2xl mb-2">📭</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500">No broadcasts sent yet</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

@@ -5,15 +5,50 @@ from datetime import datetime, date
 db = SQLAlchemy()
 
 
+class Gym(db.Model):
+    __tablename__ = 'gyms'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    name          = db.Column(db.String(120), nullable=False)
+    slug          = db.Column(db.String(60), unique=True, nullable=False)
+    address       = db.Column(db.String(255))
+    phone         = db.Column(db.String(20))
+    email         = db.Column(db.String(120))
+    is_active     = db.Column(db.Boolean, default=True, nullable=False)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # ── White-label branding ──────────────────────────────────────────────────
+    primary_color = db.Column(db.String(7), default='#166534')   # hex e.g. #1d4ed8
+    logo_data     = db.Column(db.Text, nullable=True)             # base64 data URI
+
+    # ── Subscription ─────────────────────────────────────────────────────────
+    plan_tier      = db.Column(db.String(20), default='starter')  # starter / growth / pro
+    plan_status    = db.Column(db.String(20), default='active')   # active / expired / trial
+    plan_expires_at = db.Column(db.Date, nullable=True)           # None = no expiry (free)
+
+    users       = db.relationship('User',             backref='gym', lazy=True,
+                                  foreign_keys='User.gym_id')
+    members     = db.relationship('Member',           backref='gym', lazy=True)
+    plans       = db.relationship('MembershipPlan',   backref='gym', lazy=True)
+    memberships = db.relationship('MemberMembership', backref='gym', lazy=True)
+    attendances = db.relationship('Attendance',       backref='gym', lazy=True)
+    notifs      = db.relationship('Notification',     backref='gym', lazy=True)
+
+    def __repr__(self):
+        return f'<Gym {self.name}>'
+
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
+    id            = db.Column(db.Integer, primary_key=True)
+    name          = db.Column(db.String(100), nullable=False)
+    email         = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    role = db.Column(db.String(20), default='staff')  # 'super_admin' or 'staff'
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # roles: 'platform_admin' | 'super_admin' | 'staff'
+    role          = db.Column(db.String(20), default='staff')
+    gym_id        = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=True)
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
 
     assigned_members = db.relationship(
         'Member', backref='trainer', lazy=True,
@@ -24,6 +59,10 @@ class User(UserMixin, db.Model):
     def is_super_admin(self):
         return self.role == 'super_admin'
 
+    @property
+    def is_platform_admin(self):
+        return self.role == 'platform_admin'
+
     def __repr__(self):
         return f'<User {self.email}>'
 
@@ -31,17 +70,18 @@ class User(UserMixin, db.Model):
 class Member(db.Model):
     __tablename__ = 'members'
 
-    id = db.Column(db.Integer, primary_key=True)
-    first_name = db.Column(db.String(50), nullable=False)
-    last_name = db.Column(db.String(50), nullable=False)
-    email = db.Column(db.String(120))
-    phone = db.Column(db.String(20))
-    date_of_birth = db.Column(db.Date)
-    joining_date = db.Column(db.Date, nullable=False)
+    id                  = db.Column(db.Integer, primary_key=True)
+    gym_id              = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    first_name          = db.Column(db.String(50), nullable=False)
+    last_name           = db.Column(db.String(50), nullable=False)
+    email               = db.Column(db.String(120))
+    phone               = db.Column(db.String(20))
+    date_of_birth       = db.Column(db.Date)
+    joining_date        = db.Column(db.Date, nullable=False)
     assigned_trainer_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    status = db.Column(db.String(20), default='active')  # active, inactive, suspended
-    notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    status              = db.Column(db.String(20), default='active')  # active, inactive, suspended
+    notes               = db.Column(db.Text)
+    created_at          = db.Column(db.DateTime, default=datetime.utcnow)
 
     memberships = db.relationship(
         'MemberMembership', backref='member', lazy=True,
@@ -71,10 +111,11 @@ class Member(db.Model):
 class MembershipPlan(db.Model):
     __tablename__ = 'membership_plans'
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), nullable=False)
+    id            = db.Column(db.Integer, primary_key=True)
+    gym_id        = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    name          = db.Column(db.String(50), nullable=False)
     duration_days = db.Column(db.Integer, nullable=False)
-    price = db.Column(db.Float, nullable=False)
+    price         = db.Column(db.Float, nullable=False)
 
     memberships = db.relationship('MemberMembership', backref='plan', lazy=True)
 
@@ -85,15 +126,16 @@ class MembershipPlan(db.Model):
 class Attendance(db.Model):
     __tablename__ = 'attendance'
 
-    id = db.Column(db.Integer, primary_key=True)
-    member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
-    check_in = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    check_out = db.Column(db.DateTime)
-    notes = db.Column(db.Text)
-    recorded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    id              = db.Column(db.Integer, primary_key=True)
+    gym_id          = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    member_id       = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    check_in        = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    check_out       = db.Column(db.DateTime)
+    notes           = db.Column(db.Text)
+    recorded_by_id  = db.Column(db.Integer, db.ForeignKey('users.id'))
 
-    member = db.relationship('Member', backref=db.backref('attendance', lazy=True,
-                              order_by='Attendance.check_in.desc()'))
+    member      = db.relationship('Member', backref=db.backref('attendance', lazy=True,
+                                  order_by='Attendance.check_in.desc()'))
     recorded_by = db.relationship('User', foreign_keys=[recorded_by_id])
 
     @property
@@ -110,20 +152,39 @@ class Attendance(db.Model):
         return f'<Attendance member={self.member_id} in={self.check_in}>'
 
 
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    gym_id     = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    type       = db.Column(db.String(50), nullable=False, default='check_in')
+    message    = db.Column(db.Text, nullable=False)
+    member_id  = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=True)
+    is_read    = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    notif_member = db.relationship('Member', foreign_keys=[member_id],
+                                   backref=db.backref('notifs', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<Notification {self.type}: {self.message[:40]}>'
+
+
 class MemberMembership(db.Model):
     __tablename__ = 'member_memberships'
 
-    id = db.Column(db.Integer, primary_key=True)
-    member_id = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
-    plan_id = db.Column(db.Integer, db.ForeignKey('membership_plans.id'), nullable=False)
-    start_date = db.Column(db.Date, nullable=False)
-    end_date = db.Column(db.Date, nullable=False)
-    status = db.Column(db.String(20), default='active')         # active, expired, pending
-    payment_status = db.Column(db.String(20), default='pending') # paid, pending, overdue
-    amount = db.Column(db.Float, nullable=False)
-    payment_date = db.Column(db.Date)
-    notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    id             = db.Column(db.Integer, primary_key=True)
+    gym_id         = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    member_id      = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    plan_id        = db.Column(db.Integer, db.ForeignKey('membership_plans.id'), nullable=False)
+    start_date     = db.Column(db.Date, nullable=False)
+    end_date       = db.Column(db.Date, nullable=False)
+    status         = db.Column(db.String(20), default='active')          # active, expired, pending
+    payment_status = db.Column(db.String(20), default='pending')         # paid, pending, overdue
+    amount         = db.Column(db.Float, nullable=False)
+    payment_date   = db.Column(db.Date)
+    notes          = db.Column(db.Text)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
     def days_remaining(self):
@@ -136,3 +197,23 @@ class MemberMembership(db.Model):
 
     def __repr__(self):
         return f'<Membership member={self.member_id} plan={self.plan_id}>'
+
+
+class AuditLog(db.Model):
+    __tablename__ = 'audit_logs'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    # Who did it — stored as snapshot so log survives user deletion
+    actor_id    = db.Column(db.Integer, nullable=True)
+    actor_name  = db.Column(db.String(120), nullable=False, default='System')
+    # What happened
+    action      = db.Column(db.String(60), nullable=False)   # e.g. 'gym_created'
+    # Which gym — snapshot so log survives gym deletion
+    gym_id      = db.Column(db.Integer, nullable=True)
+    gym_name    = db.Column(db.String(120), nullable=True)
+    # Human-readable detail
+    detail      = db.Column(db.Text, nullable=True)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<AuditLog {self.action} by {self.actor_name}>'
