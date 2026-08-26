@@ -1,10 +1,10 @@
-from flask import Blueprint, render_template, jsonify, request, url_for
+from flask import Blueprint, render_template, jsonify, url_for
 from flask_login import login_required, current_user
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 
 from .models import db, Notification, MemberMembership
 
-notifications_bp = Blueprint('notifications', __name__, url_prefix='/notifications')
+notifications_bp = Blueprint('notifications', __name__, url_prefix='/<string:gym_slug>/notifications')
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -37,12 +37,8 @@ def _build_feed(gid):
         })
 
     # ── Expiring memberships (dynamic) ────────────────────────────────────
-    expiring = MemberMembership.query.filter(
-        MemberMembership.gym_id   == gid,
-        MemberMembership.status   == 'active',
-        MemberMembership.end_date >= today,
-        MemberMembership.end_date <= today + timedelta(days=7),
-    ).order_by(MemberMembership.end_date.asc()).all()
+    expiring = (MemberMembership.expiring_soon_query(gym_id=gid)
+                .order_by(MemberMembership.end_date.asc()).all())
 
     for m in expiring:
         days = (m.end_date - today).days
@@ -56,12 +52,7 @@ def _build_feed(gid):
         })
 
     # ── Unpaid memberships (dynamic) ──────────────────────────────────────
-    unpaid = MemberMembership.query.filter(
-        MemberMembership.gym_id        == gid,
-        MemberMembership.status        == 'active',
-        MemberMembership.payment_status.in_(['pending', 'overdue']),
-        MemberMembership.end_date      >= today,
-    ).all()
+    unpaid = MemberMembership.unpaid_query(gym_id=gid).all()
 
     for m in unpaid:
         items.append({
@@ -97,21 +88,12 @@ def index():
                 .order_by(Notification.created_at.desc())
                 .limit(50).all())
 
-    expiring = MemberMembership.query.filter(
-        MemberMembership.gym_id   == gid,
-        MemberMembership.status   == 'active',
-        MemberMembership.end_date >= today,
-        MemberMembership.end_date <= today + timedelta(days=7),
-    ).order_by(MemberMembership.end_date.asc()).all()
+    expiring = (MemberMembership.expiring_soon_query(gym_id=gid)
+                .order_by(MemberMembership.end_date.asc()).all())
     for e in expiring:
         e.days_left = (e.end_date - today).days
 
-    unpaid = MemberMembership.query.filter(
-        MemberMembership.gym_id        == gid,
-        MemberMembership.status        == 'active',
-        MemberMembership.payment_status.in_(['pending', 'overdue']),
-        MemberMembership.end_date      >= today,
-    ).all()
+    unpaid = MemberMembership.unpaid_query(gym_id=gid).all()
 
     return render_template(
         'notifications/index.html',

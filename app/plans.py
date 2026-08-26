@@ -13,6 +13,7 @@ PLANS = {
             'attendance':    False,
             'notifications': False,
             'reminders':     False,
+            'whatsapp':      False,
             'export_csv':    False,
             'brand_color':   False,    # can set custom brand color
             'brand_logo':    False,    # can upload logo
@@ -26,6 +27,7 @@ PLANS = {
             'Attendance tracking',
             'Notifications',
             'Automated reminders',
+            'WhatsApp messaging',
             'CSV export',
             'Custom branding',
         ],
@@ -41,6 +43,7 @@ PLANS = {
             'attendance':    True,
             'notifications': True,
             'reminders':     False,
+            'whatsapp':      False,
             'export_csv':    True,
             'brand_color':   True,
             'brand_logo':    False,
@@ -56,6 +59,7 @@ PLANS = {
         ],
         'missing_labels': [
             'Automated reminders',
+            'WhatsApp messaging',
             'Logo upload',
         ],
     },
@@ -70,6 +74,7 @@ PLANS = {
             'attendance':    True,
             'notifications': True,
             'reminders':     True,
+            'whatsapp':      True,
             'export_csv':    True,
             'brand_color':   True,
             'brand_logo':    True,
@@ -81,6 +86,7 @@ PLANS = {
             'Attendance tracking',
             'Notifications',
             'Automated reminders',
+            'WhatsApp messaging',
             'CSV export',
             'Custom brand colour',
             'Logo upload',
@@ -94,6 +100,7 @@ FEATURE_ROUTES = {
     'attendance.': 'attendance',
     'notifications.': 'notifications',
     'reminders.': 'reminders',
+    'whatsapp.': 'whatsapp',
 }
 
 

@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% block title %}Privacy & Data Requests{% endblock %}
+{% block heading %}Privacy &amp; Data Requests{% endblock %}
+
+{% block content %}
+
+<div class="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 rounded-xl px-5 py-4 mb-5">
+  <p class="text-sm font-semibold text-blue-800 dark:text-blue-300">Handling a member's data request</p>
+  <p class="type-p2 text-blue-700 dark:text-blue-400 mt-1">
+    Under India's DPDP Act, members can ask for a copy of their data or ask you to erase it.
+    Log the request here when it comes in, verify who's asking, then fulfil it from the member's
+    own page. Every step stays recorded below as your evidence that you responded.
+  </p>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <p class="type-display text-gray-900 dark:text-white">{{ pending|length }}</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">awaiting action</p>
+  </div>
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <p class="type-display text-gray-900 dark:text-white">{{ requests_log|length }}</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">requests received in total</p>
+  </div>
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <p class="type-display text-gray-900 dark:text-white">{{ erased_count }}</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">members erased</p>
+  </div>
+</div>
+
+<!-- Request log -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+    <h2 class="type-h3 text-gray-900 dark:text-white">Request Log</h2>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Newest first — kept permanently, including for members who've since been erased</p>
+  </div>
+
+  {% if requests_log %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
+          <th class="text-left px-5 py-3 type-h4 text-gray-500 dark:text-slate-400">Member</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Request</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Received</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Status</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Handled By</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700/40">
+        {% for req in requests_log %}
+        <tr class="hover:bg-gray-50/60 dark:hover:bg-slate-700/30 transition-colors">
+          <td class="px-5 py-3.5">
+            {% if req.member_id and not (req.member and req.member.is_erased) %}
+            <a href="{{ url_for('members.detail', member_id=req.member_id) }}"
+               class="text-sm font-medium text-gray-700 dark:text-slate-300 hover:underline">{{ req.member_name_snapshot }}</a>
+            {% else %}
+            <span class="text-sm font-medium text-gray-500 dark:text-slate-400">{{ req.member_name_snapshot }}</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3.5">
+            {% if req.request_type == 'erasure' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">Erasure</span>
+            {% else %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400">Data export</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3.5 type-p3 text-gray-500 dark:text-slate-400">{{ req.requested_at.strftime('%d %b %Y') }}</td>
+          <td class="px-4 py-3.5">
+            {% if req.status == 'completed' %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Completed</span>
+            {% else %}
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">Pending</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3.5 type-p3 text-gray-500 dark:text-slate-400">{{ req.handled_by_name or '—' }}</td>
+          <td class="px-4 py-3.5 text-right">
+            {% if req.status == 'pending' and req.member_id %}
+            <a href="{{ url_for('members.detail', member_id=req.member_id) }}"
+               class="type-p3 link-brand hover:underline whitespace-nowrap">Fulfil →</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="py-12 text-center">
+    <p class="type-p2 text-gray-400 dark:text-slate-500">No data requests yet.</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      Log one from any member's profile page when they ask.
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

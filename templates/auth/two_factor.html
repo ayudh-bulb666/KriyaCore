@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Two-Factor Authentication{% endblock %}
+{% block heading %}Account Security{% endblock %}
+
+{% block content %}
+<div class="max-w-md space-y-4">
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="flex items-center gap-3 px-6 py-5 border-b border-gray-100 dark:border-slate-700">
+      <div class="w-10 h-10 rounded-xl bg-brand flex items-center justify-center text-white shrink-0">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
+      <div class="flex-1">
+        <h2 class="type-h3 text-gray-900 dark:text-white">Two-Factor Authentication</h2>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+          {% if current_user.totp_enabled %}Extra protection is on for your account{% else %}Not enabled yet{% endif %}
+        </p>
+      </div>
+      {% if current_user.totp_enabled %}
+      <span class="shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">On</span>
+      {% else %}
+      <span class="shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">Off</span>
+      {% endif %}
+    </div>
+
+    <div class="px-6 py-5">
+      {% if current_user.totp_enabled %}
+
+      <p class="type-p2 text-gray-500 dark:text-slate-400 mb-1">
+        Enabled {{ current_user.totp_enrolled_at.strftime('%d %b %Y') }}
+      </p>
+      <p class="type-p2 text-gray-500 dark:text-slate-400 mb-5">
+        {{ current_user.unused_backup_codes_count }} of 10 backup codes remaining
+      </p>
+
+      <div x-data="{ showRegenerate: false, showDisable: false }" class="space-y-3">
+
+        <!-- Regenerate backup codes -->
+        <div class="border border-gray-100 dark:border-slate-700 rounded-xl p-4">
+          <button type="button" @click="showRegenerate = !showRegenerate; showDisable = false"
+                  class="flex items-center justify-between w-full text-left">
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Regenerate backup codes</span>
+            <svg class="w-4 h-4 text-gray-400 transition-transform" :class="showRegenerate ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+          <div x-show="showRegenerate" x-cloak class="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <form method="POST" action="{{ url_for('auth.regenerate_backup_codes') }}" class="space-y-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <p class="type-p3 text-gray-400 dark:text-slate-500">Old codes stop working immediately. Confirm your password:</p>
+              <input type="password" name="password" required placeholder="Current password"
+                     class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand">
+              <button type="submit" class="w-full px-4 py-2 text-sm font-semibold btn-brand-soft rounded-lg transition-colors">
+                Generate New Codes
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Disable -->
+        <div class="border border-red-100 dark:border-red-900/40 rounded-xl p-4">
+          <button type="button" @click="showDisable = !showDisable; showRegenerate = false"
+                  class="flex items-center justify-between w-full text-left">
+            <span class="text-sm font-medium text-red-700 dark:text-red-400">Turn off two-factor authentication</span>
+            <svg class="w-4 h-4 text-red-400 transition-transform" :class="showDisable ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+          <div x-show="showDisable" x-cloak class="mt-3 pt-3 border-t border-red-100 dark:border-red-900/40">
+            <form method="POST" action="{{ url_for('auth.disable_2fa') }}" class="space-y-3">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <p class="type-p3 text-gray-400 dark:text-slate-500">Your account will only need a password to sign in. Confirm your password:</p>
+              <input type="password" name="password" required placeholder="Current password"
+                     class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-400">
+              <button type="submit" class="w-full px-4 py-2 text-sm font-semibold bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
+                Turn Off 2FA
+              </button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+
+      {% else %}
+
+      <p class="type-p2 text-gray-500 dark:text-slate-400 mb-4">
+        Adds a second step at login — a 6-digit code from an authenticator app on your phone, in addition to your password.
+        Recommended for every admin and staff account, since this account can see member and payment data.
+      </p>
+      <a href="{{ url_for('auth.setup_2fa') }}"
+         class="inline-flex items-center gap-2 px-5 py-2.5 btn-brand text-sm font-semibold rounded-xl transition-colors shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        Enable Two-Factor Authentication
+      </a>
+
+      {% endif %}
+    </div>
+  </div>
+
+  <a href="{{ url_for('auth.change_password') }}" class="type-p2 link-brand hover:underline inline-block">
+    ← Change password instead
+  </a>
+
+</div>
+{% endblock %}

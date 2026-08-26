@@ -6,6 +6,7 @@
 <div class="max-w-md">
   <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
     <form method="POST" action="{{ url_for('staff.new') }}" class="space-y-5">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="name">Full Name <span class="text-red-500">*</span></label>

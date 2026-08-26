@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Backup Codes{% endblock %}
+{% block heading %}Your Backup Codes{% endblock %}
+
+{% block content %}
+<div class="max-w-md">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-slate-700">
+      <div class="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-xl px-4 py-3">
+        <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <p class="type-p2 text-amber-800 dark:text-amber-300">
+          This is the only time these codes are shown. Save them somewhere safe — each one works once, to sign in if you lose access to your authenticator app.
+        </p>
+      </div>
+    </div>
+
+    <div class="px-6 py-5">
+      <div id="backup-codes" class="grid grid-cols-2 gap-2 mb-5">
+        {% for code in codes %}
+        <code class="block text-center px-3 py-2.5 text-sm font-mono rounded-lg bg-gray-50 dark:bg-slate-900 text-gray-800 dark:text-slate-200 border border-gray-200 dark:border-slate-700">{{ code }}</code>
+        {% endfor %}
+      </div>
+
+      <button type="button"
+              onclick="navigator.clipboard.writeText(Array.from(document.querySelectorAll('#backup-codes code')).map(c => c.textContent).join('\n'))"
+              class="w-full mb-3 px-4 py-2.5 text-sm font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 rounded-xl transition-colors">
+        Copy All Codes
+      </button>
+
+      <a href="{{ url_for('auth.two_factor') }}"
+         class="block w-full text-center px-4 py-2.5 btn-brand text-sm font-semibold rounded-xl transition-colors">
+        I've Saved These — Continue
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

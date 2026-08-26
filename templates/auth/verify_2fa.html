@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full"
+      x-data="{ darkMode: localStorage.getItem('gympro-dark') === 'true' }"
+      :class="{ dark: darkMode }"
+      x-init="$watch('darkMode', v => localStorage.setItem('gympro-dark', v))">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify — GYMPro</title>
+  <meta name="theme-color" content="#166534" />
+  <script>if (localStorage.getItem('gympro-dark') === 'true') document.documentElement.classList.add('dark');</script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>[x-cloak]{display:none!important}</style>
+</head>
+
+<body class="h-full bg-gray-50 dark:bg-slate-950 flex items-center justify-center px-6 transition-colors">
+
+<div class="w-full max-w-sm">
+
+  <div class="flex flex-col items-center mb-8">
+    <div class="w-12 h-12 bg-green-700 rounded-2xl flex items-center justify-center shadow mb-4">
+      <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      </svg>
+    </div>
+    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Two-step verification</h2>
+    <p class="text-gray-500 dark:text-slate-400 text-sm mt-1 text-center">
+      Hi {{ user_name }} — enter the 6-digit code from your authenticator app.
+    </p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+    <div class="mb-5 px-4 py-3 rounded-xl text-sm flex items-start gap-2
+                {% if category == 'danger' %}bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/50
+                {% elif category == 'warning' %}bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50
+                {% else %}bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50{% endif %}">
+      <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      {{ message }}
+    </div>
+    {% endfor %}
+  {% endif %}
+  {% endwith %}
+
+  <form method="POST" action="{{ url_for('auth.verify_2fa') }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="code">
+        Verification code
+      </label>
+      <input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+             required autofocus maxlength="12"
+             class="w-full px-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-xl text-sm text-center tracking-[0.3em] font-mono
+                    bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                    placeholder-gray-400 dark:placeholder-slate-500
+                    focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent
+                    transition-shadow"
+             placeholder="000000" />
+      <p class="text-xs text-gray-400 dark:text-slate-500 mt-2 text-center">
+        Lost your device? Enter one of your backup codes instead.
+      </p>
+    </div>
+
+    <button type="submit"
+            class="w-full py-2.5 px-4 bg-green-700 hover:bg-green-800 text-white font-semibold
+                   rounded-xl transition-colors text-sm shadow-sm">
+      Verify
+    </button>
+  </form>
+
+  <div class="mt-6 text-center">
+    <a href="{{ url_for('auth.login') }}" class="text-xs text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300">
+      ← Back to sign in
+    </a>
+  </div>
+
+</div>
+
+</body>
+</html>

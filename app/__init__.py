@@ -1,18 +1,64 @@
 import os
 
-from flask import Flask, g, redirect, url_for, request, flash
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
+
+from flask import Flask, redirect, url_for, request, flash
 from flask_login import LoginManager, current_user
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf import CSRFProtect
+from flask_wtf.csrf import CSRFError
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .models import db, User, Gym, Member, MembershipPlan, MemberMembership
 from .plans import PLANS, FEATURE_ROUTES, plan_has
 
 login_manager = LoginManager()
+limiter = Limiter(key_func=get_remote_address, default_limits=[])
+csrf = CSRFProtect()
 
 
 def create_app():
+    # ── Error monitoring (Sentry) ────────────────────────────────────────────
+    # Fully optional: with no SENTRY_DSN set, this block is skipped and the
+    # app behaves exactly as before. Set SENTRY_DSN on Railway whenever the
+    # account is ready — no code changes needed at that point.
+    sentry_dsn = os.environ.get('SENTRY_DSN', '').strip()
+    if sentry_dsn:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[FlaskIntegration()],
+            environment=os.environ.get('FLASK_ENV', 'development'),
+            traces_sample_rate=0.1,
+            send_default_pii=False,
+            # This app has login, change-password, and staff/admin
+            # password-reset forms everywhere — never let Sentry capture
+            # request bodies, or a crash report could contain a plaintext
+            # password.
+            max_request_body_size='never',
+        )
+
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
+    app.config['SENTRY_ENABLED'] = bool(sentry_dsn)
+
+    # Trust exactly one reverse-proxy hop for client IP / scheme / host.
+    # The app is always deployed behind one — Railway's edge, or Nginx on a
+    # self-hosted VPS — never exposed directly. Without this, every request
+    # reports the proxy's own IP: rate limiting collapses into one shared
+    # bucket for all users, and secure-cookie / HTTPS detection breaks.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'gympro-dev-secret-change-in-production')
+
+    # ── Session cookie hardening ─────────────────────────────────────────────
+    # SECURE requires HTTPS, so it's only forced on in production (Railway
+    # terminates TLS in front of the app). Left off locally so http://
+    # dev logins keep working.
+    is_production = os.environ.get('FLASK_ENV') == 'production'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE']   = is_production
 
     # Support Railway PostgreSQL (DATABASE_URL) or fall back to SQLite locally
     _db_url = os.environ.get('DATABASE_URL', 'sqlite:///gympro.db')
@@ -38,6 +84,15 @@ def create_app():
     login_manager.login_message = 'Please log in to access this page.'
     login_manager.login_message_category = 'warning'
 
+    # In-memory limiter storage is fine for a single-dyno deploy (Railway).
+    # If you scale to multiple workers/instances, point storage_uri at Redis.
+    limiter.init_app(app)
+
+    # Protects every POST/PUT/PATCH/DELETE app-wide. Forms carry the token via
+    # a hidden csrf_token input; the one AJAX POST (mark-all-read) sends it as
+    # an X-CSRFToken header — see templates/base.html.
+    csrf.init_app(app)
+
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
@@ -52,6 +107,23 @@ def create_app():
     from .reminders     import reminders_bp
     from .notifications import notifications_bp
     from .operator      import operator_bp
+    from .faceid        import faceid_bp
+    from .whatsapp      import whatsapp_bp
+    from .privacy       import privacy_bp
+    from .cron          import cron_bp
+
+    # Gym-facing blueprints are mounted under '/<gym_slug>/...' so each gym
+    # gets its own branded URL (e.g. gympro.app/powerfit-mumbai/dashboard).
+    # register_gym_scoping wires up the slug plumbing + tenant-URL guard —
+    # see app/tenant.py for details. auth_bp and operator_bp stay unscoped.
+    from .tenant import register_gym_scoping
+    # privacy_bp is gym-scoped like the rest, but deliberately absent from
+    # plans.py's FEATURE_ROUTES — DPDP data rights are a legal obligation,
+    # not a paid feature, so they stay available on every tier.
+    for _bp in (dashboard_bp, members_bp, billing_bp, staff_bp,
+                attendance_bp, reminders_bp, notifications_bp, whatsapp_bp,
+                privacy_bp):
+        register_gym_scoping(_bp)
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -62,6 +134,19 @@ def create_app():
     app.register_blueprint(reminders_bp)
     app.register_blueprint(notifications_bp)
     app.register_blueprint(operator_bp)
+    app.register_blueprint(whatsapp_bp)
+    app.register_blueprint(privacy_bp)
+
+    # Called by a third-party device, not a logged-in browser — no session,
+    # no CSRF token to give it. Auth is the gym-specific secret in the URL
+    # itself instead (see app/faceid.py).
+    app.register_blueprint(faceid_bp)
+    csrf.exempt(faceid_bp)
+
+    # Called by an external cron, not a logged-in browser — same reasoning
+    # as faceid_bp above. Auth is CRON_SECRET via header (see app/cron.py).
+    app.register_blueprint(cron_bp)
+    csrf.exempt(cron_bp)
 
     # Expose Python builtins to all templates
     app.jinja_env.globals.update(zip=zip, enumerate=enumerate)
@@ -103,7 +188,7 @@ def create_app():
             ctx['is_impersonating'] = 'impersonator_id' in _s
             if current_user.is_platform_admin:
                 return ctx
-            from datetime import date, timedelta
+            from datetime import date
             from .models import Notification, MemberMembership
             gid   = current_user.gym_id
             today = date.today()
@@ -116,12 +201,7 @@ def create_app():
                 ctx['plan_features'] = ctx['plan']['features']
 
             unread   = Notification.query.filter_by(gym_id=gid, is_read=False).count()
-            expiring = MemberMembership.query.filter(
-                MemberMembership.gym_id   == gid,
-                MemberMembership.status   == 'active',
-                MemberMembership.end_date >= today,
-                MemberMembership.end_date <= today + timedelta(days=7),
-            ).count()
+            expiring = MemberMembership.expiring_soon_query(gym_id=gid).count()
             unpaid = MemberMembership.query.filter(
                 MemberMembership.gym_id        == gid,
                 MemberMembership.status        == 'active',
@@ -136,6 +216,47 @@ def create_app():
     @app.context_processor
     def inject_plans():
         return {'PLANS': PLANS}
+
+    @app.context_processor
+    def inject_sentry_flag():
+        return {'SENTRY_ENABLED': app.config['SENTRY_ENABLED']}
+
+    # ── Sentry: tag every event with who + which gym, once a user is known ────
+    # No-ops safely if SENTRY_DSN isn't set (sentry_sdk calls are inert until
+    # sentry_sdk.init() has actually run).
+    @app.before_request
+    def _tag_sentry_context():
+        if not current_user.is_authenticated:
+            return
+        sentry_sdk.set_user({'id': current_user.id, 'email': current_user.email})
+        sentry_sdk.set_tag('role', current_user.role)
+        gym = getattr(current_user, 'gym', None)
+        if gym:
+            sentry_sdk.set_tag('gym_id', gym.id)
+            sentry_sdk.set_tag('gym_name', gym.name)
+
+    # ── Bare '/' — dashboards now live at '/<gym_slug>/...', so send visitors
+    #    (PWA start_url, stale bookmarks, a bare domain hit) to the right place.
+    @app.route('/')
+    def root():
+        if current_user.is_authenticated:
+            if current_user.is_platform_admin:
+                return redirect(url_for('operator.index'))
+            if current_user.gym:
+                return redirect(url_for('dashboard.index'))
+        return redirect(url_for('auth.login'))
+
+    # ── Rate-limit exceeded → friendly message instead of a bare 429 ──────────
+    @app.errorhandler(429)
+    def rate_limit_exceeded(e):
+        flash('Too many attempts. Please wait a minute and try again.', 'danger')
+        return redirect(url_for('auth.login'))
+
+    # ── CSRF token missing/expired → bounce back instead of a bare 400 ────────
+    @app.errorhandler(CSRFError)
+    def csrf_error(e):
+        flash('Your session expired — please try that again.', 'warning')
+        return redirect(request.referrer or url_for('root'))
 
     with app.app_context():
         db.create_all()

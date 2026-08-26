@@ -3,14 +3,14 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from flask import (Blueprint, render_template, redirect, url_for,
-                   flash, current_app, request)
+                   flash, current_app)
 from flask_login import login_required, current_user
-from datetime import date, timedelta
+from datetime import date
 
 from .models import MemberMembership
 from .helpers import role_required
 
-reminders_bp = Blueprint('reminders', __name__, url_prefix='/reminders')
+reminders_bp = Blueprint('reminders', __name__, url_prefix='/<string:gym_slug>/reminders')
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -50,16 +50,7 @@ def _send_one(subject, to_email, html_body, cfg):
 
 
 def _expiring_memberships():
-    from flask_login import current_user
-    today      = date.today()
-    week_later = today + timedelta(days=7)
-    return (MemberMembership.query
-            .filter(
-                MemberMembership.gym_id   == current_user.gym_id,
-                MemberMembership.status   == 'active',
-                MemberMembership.end_date >= today,
-                MemberMembership.end_date <= week_later,
-            )
+    return (MemberMembership.expiring_soon_query(gym_id=current_user.gym_id)
             .order_by(MemberMembership.end_date)
             .all())
 

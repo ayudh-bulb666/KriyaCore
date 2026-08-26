@@ -6,6 +6,7 @@
 <div class="max-w-2xl">
   <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
     <form method="POST" action="{{ url_for('members.new') }}" class="space-y-5">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>

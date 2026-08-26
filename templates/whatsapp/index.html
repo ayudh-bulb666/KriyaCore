@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% block title %}WhatsApp{% endblock %}
+{% block heading %}WhatsApp Messages{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('whatsapp.settings') }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-sm font-medium rounded-lg border border-gray-200 dark:border-slate-600 transition-colors">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+  </svg>
+  Settings
+</a>
+<a href="{{ url_for('whatsapp.broadcast') }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 btn-brand text-sm font-medium rounded-lg transition-colors shadow">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+  </svg>
+  New Announcement
+</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Status Banner ──────────────────────────────────────────────────────── -->
+{% if provider_configured %}
+<div class="flex items-start gap-3 bg-green-50 border border-green-200 text-green-800 rounded-xl px-5 py-4 mb-5">
+  <svg class="w-5 h-5 text-green-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  <p class="font-semibold text-sm">WhatsApp provider connected — messages send for real.</p>
+</div>
+{% else %}
+<div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-5 mb-5">
+  <div class="flex items-start gap-3">
+    <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+    </svg>
+    <div>
+      <p class="font-semibold text-sm text-amber-800">No WhatsApp provider connected yet</p>
+      <p class="text-sm text-amber-700 mt-0.5">
+        Everything below works — opt-ins, triggers, message logging — but sends are only logged as
+        <span class="font-mono text-xs bg-amber-100 px-1.5 py-0.5 rounded">queued_no_provider</span>,
+        nothing actually reaches a phone yet. Connect a WhatsApp Business provider and set
+        <span class="font-mono text-xs bg-amber-100 px-1.5 py-0.5 rounded">WHATSAPP_PROVIDER</span> to go live.
+      </p>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="flex items-center gap-2 mb-5">
+  {% if settings.auto_expiry_reminders_enabled %}
+  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">
+    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+    Auto-reminders on — {{ settings.remind_days_before }} day{{ 's' if settings.remind_days_before != 1 }} before expiry
+  </span>
+  {% else %}
+  <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">
+    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+    Auto-reminders off — sending manually only
+  </span>
+  {% endif %}
+  <a href="{{ url_for('whatsapp.settings') }}" class="type-p3 link-brand hover:underline">Change</a>
+</div>
+
+<!-- Stats -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <p class="type-display text-gray-900 dark:text-white">{{ opted_in_count }}</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">of {{ total_members }} members opted in</p>
+  </div>
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <p class="type-display text-gray-900 dark:text-white">{{ expiring|length }}</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">memberships expiring within {{ settings.remind_days_before }} days, not yet reminded</p>
+  </div>
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <p class="type-display text-gray-900 dark:text-white">{{ expiring_reachable|length }}</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">of those are reachable (opted in)</p>
+  </div>
+</div>
+
+<!-- Expiry reminders -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm mb-5 overflow-hidden">
+  <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+    <div>
+      <h2 class="type-h3 text-gray-900 dark:text-white">Expiry Reminders</h2>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Membership expiring within {{ settings.remind_days_before }} days and not yet reminded, sent via the "Membership Expiring" template</p>
+    </div>
+    {% if expiring_reachable %}
+    <form method="POST" action="{{ url_for('whatsapp.send_expiry_reminders') }}"
+          onsubmit="return confirm('Send expiry reminders to {{ expiring_reachable|length }} member(s)?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="px-4 py-2 btn-brand-soft text-sm font-medium rounded-lg transition-colors whitespace-nowrap">
+        Send {{ expiring_reachable|length }} Reminder{{ 's' if expiring_reachable|length != 1 }}
+      </button>
+    </form>
+    {% endif %}
+  </div>
+  {% if expiring %}
+  <div class="divide-y divide-gray-50 dark:divide-slate-700/40">
+    {% for mem in expiring %}
+    <div class="flex items-center gap-4 px-5 py-3.5">
+      <div class="w-9 h-9 rounded-full avatar-brand flex items-center justify-center font-bold text-sm shrink-0">
+        {{ mem.member.initials }}
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="type-p2 text-gray-800 dark:text-slate-200">{{ mem.member.full_name }}</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500">{{ mem.plan.name }} · expires {{ mem.end_date.strftime('%d %b %Y') }}</p>
+      </div>
+      {% if mem.member.whatsapp_reachable %}
+      <span class="shrink-0 text-xs font-medium px-2 py-1 rounded-lg bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Reachable</span>
+      {% else %}
+      <span class="shrink-0 text-xs font-medium px-2 py-1 rounded-lg bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">Not opted in</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="py-10 text-center">
+    <p class="type-p2 text-gray-400 dark:text-slate-500">No memberships expiring in the next 7 days.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Message log -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+    <h2 class="type-h3 text-gray-900 dark:text-white">Recent Messages</h2>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Last 30 sends — every attempt is logged, sent or not</p>
+  </div>
+  {% if recent %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
+          <th class="text-left px-5 py-3 type-h4 text-gray-500 dark:text-slate-400">Member</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Type</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Message</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Status</th>
+          <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">When</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700/40">
+        {% for msg in recent %}
+        <tr class="hover:bg-gray-50/60 dark:hover:bg-slate-700/30 transition-colors">
+          <td class="px-5 py-3">
+            <a href="{{ url_for('members.detail', member_id=msg.member_id) }}" class="text-sm font-medium text-gray-700 dark:text-slate-300 hover:underline">
+              {{ msg.member.full_name }}
+            </a>
+          </td>
+          <td class="px-4 py-3 type-p3 text-gray-500 dark:text-slate-400 capitalize">{{ msg.message_type.replace('_', ' ') }}</td>
+          <td class="px-4 py-3 type-p3 text-gray-500 dark:text-slate-400 max-w-xs truncate" title="{{ msg.body_preview }}">{{ msg.body_preview }}</td>
+          <td class="px-4 py-3">
+            <span class="px-2 py-0.5 rounded-full text-xs font-medium
+              {% if msg.status == 'sent' %}bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400
+              {% elif msg.status == 'queued_no_provider' %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400
+              {% elif msg.status == 'skipped_no_optin' %}bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400
+              {% else %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400{% endif %}">
+              {{ msg.status.replace('_', ' ') }}
+            </span>
+          </td>
+          <td class="px-4 py-3 type-p3 text-gray-400 dark:text-slate-500">{{ msg.created_at.strftime('%d %b, %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="py-10 text-center">
+    <p class="type-p2 text-gray-400 dark:text-slate-500">No messages sent yet.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

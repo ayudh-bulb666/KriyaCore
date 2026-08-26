@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+{% block title %}Front Desk{% endblock %}
+{% block heading %}Front Desk{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('members.new') }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-sm font-medium rounded-lg border border-gray-200 dark:border-slate-600 transition-colors">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+  </svg>
+  Add Member
+</a>
+{% if plan_features.get('attendance', True) %}
+<a href="{{ url_for('attendance.index') }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 btn-brand text-sm font-medium rounded-lg transition-colors shadow">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  </svg>
+  Log Arrival
+</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{% include 'dashboard/_view_toggle.html' %}
+
+{#  Someone refused at the door in the last half hour is probably still at the
+    desk. Shows only when there's something live — never as an empty box. #}
+{% if denied %}
+<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl px-5 py-4 mb-5">
+  <div class="flex items-start gap-3">
+    <svg class="w-5 h-5 text-red-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+    </svg>
+    <div class="min-w-0">
+      <p class="text-sm font-semibold text-red-800 dark:text-red-300">
+        Turned away at the door just now
+      </p>
+      <ul class="mt-1 space-y-0.5">
+        {% for d in denied %}
+        <li class="type-p2 text-red-700 dark:text-red-400">
+          {% if d.member_id %}
+          <a href="{{ url_for('members.detail', member_id=d.member_id) }}#membership" class="underline">{{ d.message }}</a>
+          {% else %}{{ d.message }}{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{#  ── Search: the reason this screen exists ─────────────────────────────────
+    Answers "is this person good to go?" in one keystroke. Log arrival acts
+    immediately (high frequency, no financial consequence); anything involving
+    money routes to the member's page instead, so a payment is never one click
+    from a search box. #}
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 mb-5"
+     x-data="deskSearch()">
+  <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">
+    Look up a member
+  </label>
+  <div class="relative">
+    <svg class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+    </svg>
+    <input type="text" x-model="query" @input.debounce.200ms="search()"
+           x-ref="box" autocomplete="off" autofocus
+           placeholder="Name or phone number…"
+           class="w-full pl-12 pr-10 py-3.5 text-base border border-gray-200 dark:border-slate-600 rounded-xl
+                  bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                  placeholder-gray-400 dark:placeholder-slate-500
+                  focus:outline-none focus:ring-2 focus-brand transition-shadow">
+    <button type="button" x-show="query" x-cloak @click="clear()"
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <p x-show="query && !loading && results.length === 0" x-cloak
+     class="type-p2 text-gray-400 dark:text-slate-500 mt-3">No member matches that.</p>
+
+  <div x-show="results.length" x-cloak class="mt-4 space-y-2.5">
+    <template x-for="m in results" :key="m.id">
+      <div class="rounded-xl border p-4"
+           :class="{
+             'border-green-200 bg-green-50 dark:border-green-800/50 dark:bg-green-900/20': m.state === 'active',
+             'border-amber-200 bg-amber-50 dark:border-amber-800/50 dark:bg-amber-900/20': m.state === 'expiring' || m.state === 'unpaid',
+             'border-red-200 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20': m.state === 'expired' || m.state === 'none'
+           }">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div class="flex items-start gap-3 min-w-0">
+            <div class="w-11 h-11 rounded-full avatar-brand flex items-center justify-center font-bold shrink-0"
+                 x-text="m.initials"></div>
+            <div class="min-w-0">
+              <a :href="m.detail_url"
+                 class="block text-base font-bold text-gray-900 dark:text-slate-100 hover:underline"
+                 x-text="m.name"></a>
+              <p class="type-p3 text-gray-500 dark:text-slate-400" x-text="m.phone"></p>
+              <p class="text-sm font-semibold mt-1"
+                 :class="{
+                   'text-green-800 dark:text-green-300': m.state === 'active',
+                   'text-amber-800 dark:text-amber-300': m.state === 'expiring' || m.state === 'unpaid',
+                   'text-red-800 dark:text-red-300': m.state === 'expired' || m.state === 'none'
+                 }">
+                <span x-text="m.state === 'active' ? '✓' : '⚠'"></span>
+                <span x-text="m.message"></span>
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            {% if plan_features.get('attendance', True) %}
+            <form method="POST" :action="logVisitUrl">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="member_id" :value="m.id">
+              <button type="submit"
+                      class="inline-flex items-center gap-1.5 px-3.5 py-2 btn-brand text-xs font-semibold rounded-lg shadow-sm transition-colors whitespace-nowrap">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+                Log Arrival
+              </button>
+            </form>
+            {% endif %}
+
+            {#  Money actions navigate rather than act — the friction is the
+                point. Staff confirm the payment on the member's own page. #}
+            <template x-if="m.state === 'unpaid'">
+              <a :href="m.detail_url"
+                 class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg whitespace-nowrap
+                        border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                        bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+                Take payment →
+              </a>
+            </template>
+            <template x-if="m.state === 'expiring' || m.state === 'expired' || m.state === 'none'">
+              <a :href="m.detail_url"
+                 class="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg whitespace-nowrap
+                        border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                        bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+                Renew →
+              </a>
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- Stat strip -->
+<div class="flex gap-3 flex-wrap mb-5">
+  <div class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2 shadow-sm text-center">
+    <p class="text-xl font-bold text-gray-900 dark:text-slate-100">{{ visits_today }}</p>
+    <p class="type-p3 text-gray-500 dark:text-slate-400">Visits today</p>
+  </div>
+  <div class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2 shadow-sm text-center">
+    <p class="text-xl font-bold text-gray-900 dark:text-slate-100">{{ unique_today }}</p>
+    <p class="type-p3 text-gray-500 dark:text-slate-400">Unique members</p>
+  </div>
+  {% if via_face_id %}
+  <div class="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2 shadow-sm text-center">
+    <p class="text-xl font-bold text-teal-700 dark:text-teal-400">{{ via_face_id }}</p>
+    <p class="type-p3 text-gray-500 dark:text-slate-400">Via Face ID</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+  <!-- Today's arrivals -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+      <h2 class="type-h3 text-gray-900 dark:text-white">Arrivals today</h2>
+      {% if plan_features.get('attendance', True) %}
+      <a href="{{ url_for('attendance.index') }}" class="type-p3 link-brand hover:underline">Full log →</a>
+      {% endif %}
+    </div>
+    {% if arrivals %}
+    <div class="divide-y divide-gray-50 dark:divide-slate-700/40 max-h-96 overflow-y-auto">
+      {% for a in arrivals %}
+      <a href="{{ url_for('members.detail', member_id=a.member_id) }}"
+         class="flex items-center gap-3 px-5 py-3 hover-bg-brand transition-colors group">
+        <div class="w-9 h-9 rounded-full avatar-brand flex items-center justify-center text-xs font-bold shrink-0">
+          {{ a.member.initials }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="type-p2 font-medium text-gray-800 dark:text-slate-200 group-hover-brand transition-colors truncate">
+            {{ a.member.full_name }}
+          </p>
+          {% if a.membership_status and a.membership_status != 'active' %}
+          <span class="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide
+            {% if a.membership_status in ('expired', 'none') %}bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400
+            {% else %}bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400{% endif %}">
+            {% if a.membership_status == 'none' %}No membership
+            {% elif a.membership_status == 'expired' %}Expired
+            {% elif a.membership_status == 'unpaid' %}Unpaid
+            {% else %}Expiring{% endif %}
+          </span>
+          {% endif %}
+        </div>
+        <span class="type-p3 text-gray-400 dark:text-slate-500 shrink-0">{{ a.visited_at.strftime('%I:%M %p') }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="py-12 text-center">
+      <p class="type-p2 text-gray-400 dark:text-slate-500">Nobody's arrived yet today.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Needs attention -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+      <h2 class="type-h3 text-gray-900 dark:text-white">Catch them at the desk</h2>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Worth a word if they come in today</p>
+    </div>
+
+    {% set has_any = lapsed_visitors or unpaid or expiring %}
+    {% if has_any %}
+    <div class="divide-y divide-gray-50 dark:divide-slate-700/40 max-h-96 overflow-y-auto">
+
+      {% for a in lapsed_visitors %}
+      <a href="{{ url_for('members.detail', member_id=a.member_id) }}#membership"
+         class="flex items-center gap-3 px-5 py-3 hover:bg-red-50/50 dark:hover:bg-red-900/10 transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+        <div class="flex-1 min-w-0">
+          <p class="type-p2 font-medium text-gray-800 dark:text-slate-200 truncate">{{ a.member.full_name }}</p>
+          <p class="type-p3 text-red-600 dark:text-red-400">Came in today with no valid membership</p>
+        </div>
+        <span class="type-p3 link-brand shrink-0">Renew →</span>
+      </a>
+      {% endfor %}
+
+      {% for m in unpaid %}
+      <a href="{{ url_for('members.detail', member_id=m.member_id) }}#membership"
+         class="flex items-center gap-3 px-5 py-3 hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+        <div class="flex-1 min-w-0">
+          <p class="type-p2 font-medium text-gray-800 dark:text-slate-200 truncate">{{ m.member.full_name }}</p>
+          <p class="type-p3 text-gray-500 dark:text-slate-400">
+            {{ m.plan.name }} · ₹{{ "%.0f"|format(m.amount) }} {{ m.payment_status }}
+          </p>
+        </div>
+        <span class="type-p3 link-brand shrink-0">Take payment →</span>
+      </a>
+      {% endfor %}
+
+      {% for m in expiring %}
+      <a href="{{ url_for('members.detail', member_id=m.member_id) }}#membership"
+         class="flex items-center gap-3 px-5 py-3 hover-bg-brand transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-slate-600 shrink-0"></span>
+        <div class="flex-1 min-w-0">
+          <p class="type-p2 font-medium text-gray-800 dark:text-slate-200 truncate">{{ m.member.full_name }}</p>
+          <p class="type-p3 text-gray-500 dark:text-slate-400">
+            {{ m.plan.name }} expires
+            {% if m.days_remaining == 0 %}today
+            {% elif m.days_remaining == 1 %}tomorrow
+            {% else %}in {{ m.days_remaining }} days{% endif %}
+          </p>
+        </div>
+        <span class="type-p3 link-brand shrink-0">Renew →</span>
+      </a>
+      {% endfor %}
+
+    </div>
+    {% else %}
+    <div class="py-12 text-center">
+      <p class="type-p2 text-gray-400 dark:text-slate-500">Nothing needs chasing right now.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<script>
+  function deskSearch() {
+    return {
+      query: '', results: [], loading: false,
+      logVisitUrl: '{{ url_for("attendance.log_visit") if plan_features.get("attendance", True) else "" }}',
+      async search() {
+        if (!this.query.trim()) { this.results = []; return; }
+        this.loading = true;
+        try {
+          const r = await fetch('{{ url_for("dashboard.desk_search") }}?q=' + encodeURIComponent(this.query));
+          this.results = await r.json();
+        } finally { this.loading = false; }
+      },
+      clear() { this.query = ''; this.results = []; this.$refs.box.focus(); }
+    };
+  }
+</script>
+{% endblock %}

@@ -76,10 +76,116 @@
     {% endif %}
   </div>
 
+  <!-- Face ID enrollment -->
+  {% if current_gym and current_gym.face_id_enabled %}
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Face ID Access</h3>
+      {% if member.is_face_id_enrolled %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400">Enrolled</span>
+      {% else %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">Not enrolled</span>
+      {% endif %}
+    </div>
+
+    {% if member.is_face_id_enrolled %}
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="type-p2 text-gray-700 dark:text-slate-300">Device ID: <code class="font-mono text-xs">{{ member.face_id_external_id }}</code></p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+          Consented {{ member.face_id_consent_at.strftime('%d %b %Y') }}
+        </p>
+      </div>
+      <form method="POST" action="{{ url_for('members.set_face_id', member_id=member.id) }}"
+            onsubmit="return confirm('This only removes {{ member.full_name }}\'s record in GYMPro. Their actual face enrollment still exists on the access-control device itself — delete it there too, or they can still scan in. Continue?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="unenroll">
+        <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
+          Remove
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mb-3">
+      After enrolling {{ member.first_name }}'s face on the access-control terminal, enter the ID it assigned them here.
+    </p>
+    <form method="POST" action="{{ url_for('members.set_face_id', member_id=member.id) }}" class="space-y-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 dark:text-slate-400 mb-1">Device-assigned ID</label>
+        <input type="text" name="external_id" required
+               placeholder="e.g. the enrollment ID shown on the terminal"
+               class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus-brand">
+      </div>
+      <label class="flex items-start gap-2 cursor-pointer">
+        <input type="checkbox" name="consent" required
+               class="mt-0.5 w-4 h-4 rounded border-gray-300 dark:border-slate-600">
+        <span class="type-p3 text-gray-600 dark:text-slate-400">
+          {{ member.first_name }} has consented to Face ID biometric access control at this gym.
+        </span>
+      </label>
+      <button type="submit" class="px-4 py-2 text-sm font-semibold btn-brand rounded-lg transition-colors">
+        Save Enrollment
+      </button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- WhatsApp messaging -->
+  {% if plan_features.get('whatsapp') %}
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">WhatsApp Messages</h3>
+      {% if member.whatsapp_opt_in %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">Opted in</span>
+      {% else %}
+      <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">Not opted in</span>
+      {% endif %}
+    </div>
+
+    {% if member.whatsapp_opt_in %}
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="type-p2 text-gray-700 dark:text-slate-300">{{ member.phone or '—' }}</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+          Opted in {{ member.whatsapp_opt_in_at.strftime('%d %b %Y') }}
+        </p>
+      </div>
+      <form method="POST" action="{{ url_for('members.set_whatsapp_optin', member_id=member.id) }}"
+            onsubmit="return confirm('Opt {{ member.full_name }} out of WhatsApp messages?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="opt_out">
+        <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
+          Opt Out
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mb-3">
+      {% if member.phone %}
+      Confirm {{ member.first_name }} has agreed to receive WhatsApp messages from the gym before opting them in.
+      {% else %}
+      Add a phone number for {{ member.first_name }} first — required to send WhatsApp messages.
+      {% endif %}
+    </p>
+    <form method="POST" action="{{ url_for('members.set_whatsapp_optin', member_id=member.id) }}" class="space-y-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="opt_in">
+      <button type="submit" {% if not member.phone %}disabled{% endif %}
+              class="px-4 py-2 text-sm font-semibold btn-brand rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+        Opt In to WhatsApp Messages
+      </button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- Current membership status -->
   {% set active_mem = member.active_membership %}
   {% if active_mem %}
-  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+  {# id anchors the front-desk search CTA — /members/<id>#membership lands here #}
+  <div id="membership" class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 scroll-mt-24">
     <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Current Membership</h3>
     <div class="flex items-center gap-4 p-4 rounded-lg
                 {% if active_mem.is_expiring_soon %}bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40{% else %}bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/40{% endif %}">
@@ -111,16 +217,37 @@
           </span>
         </div>
       </div>
-      <div class="shrink-0 flex gap-2">
+      {#  Same weighting as the Billing table: Mark Paid records money (and
+          messages the member) so it's solid + confirmed; Renew starts a new
+          cycle so it's outlined + confirmed. This card is where the front
+          desk lands from the dashboard search, so the money actions live
+          here rather than one click from a search box. #}
+      <div class="shrink-0 flex items-center gap-2.5">
         {% if active_mem.payment_status != 'paid' %}
-        <form method="POST" action="{{ url_for('billing.pay', membership_id=active_mem.id) }}">
-          <button type="submit" class="px-3 py-1.5 btn-brand text-xs font-medium rounded-lg transition-colors">
+        <form method="POST" action="{{ url_for('billing.pay', membership_id=active_mem.id) }}"
+              onsubmit="return confirm('Record payment of ₹{{ '%.2f'|format(active_mem.amount) }} from {{ member.full_name }}?{% if plan_features.get('whatsapp') %}\n\nA confirmation message will be sent to them on WhatsApp.{% endif %}')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 btn-brand text-xs font-semibold rounded-lg shadow-sm transition-colors whitespace-nowrap">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
             Mark Paid
           </button>
         </form>
         {% endif %}
-        <form method="POST" action="{{ url_for('billing.renew', membership_id=active_mem.id) }}">
-          <button type="submit" class="px-3 py-1.5 btn-brand text-xs font-medium rounded-lg transition-colors">
+        <form method="POST" action="{{ url_for('billing.renew', membership_id=active_mem.id) }}"
+              onsubmit="return confirm('Start a new {{ active_mem.plan.name }} cycle for {{ member.full_name }}?\n\nThe current one is marked expired and a new unpaid membership is created.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap
+                         border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                         bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600
+                         hover:border-gray-400 dark:hover:border-slate-400 transition-colors">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
             Renew
           </button>
         </form>
@@ -146,6 +273,7 @@
             <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Amount</th>
             <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Status</th>
             <th class="text-left py-2 text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase">Payment</th>
+            <th class="py-2"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
@@ -172,6 +300,18 @@
                 {{ mem.payment_status|capitalize }}
               </span>
             </td>
+            <td class="py-2.5 text-right">
+              {% if mem.payment_status == 'paid' %}
+              <a href="{{ url_for('billing.invoice', membership_id=mem.id) }}" target="_blank" rel="noopener"
+                 title="Download invoice"
+                 class="inline-flex p-1 text-gray-400 dark:text-slate-500 hover-brand transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+              </a>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
@@ -193,18 +333,11 @@
     <div class="space-y-2">
       {% for visit in recent_visits %}
       <div class="flex items-center gap-4 py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
-        <div class="w-1.5 h-1.5 rounded-full shrink-0 {% if not visit.check_out %}bg-green-500{% else %}bg-gray-300 dark:bg-slate-600{% endif %}"></div>
-        <span class="type-p2 text-gray-600 dark:text-slate-400 w-28">{{ visit.check_in.strftime('%b %d, %Y') }}</span>
-        <span class="type-p2 text-gray-700 dark:text-slate-300 font-medium">{{ visit.check_in.strftime('%I:%M %p') }}</span>
-        <span class="text-gray-400 dark:text-slate-500 text-xs">→</span>
-        {% if visit.check_out %}
-          <span class="type-p2 text-gray-700 dark:text-slate-300">{{ visit.check_out.strftime('%I:%M %p') }}</span>
-          <span class="type-p3 text-gray-400 dark:text-slate-500 ml-auto">
-            {% set h = visit.duration_minutes // 60 %}{% set m = visit.duration_minutes % 60 %}
-            {% if h > 0 %}{{ h }}h {% endif %}{{ m }}m
-          </span>
-        {% else %}
-          <span class="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded-full">In gym now</span>
+        <div class="w-1.5 h-1.5 rounded-full shrink-0 dot-brand"></div>
+        <span class="type-p2 text-gray-600 dark:text-slate-400 w-28">{{ visit.visited_at.strftime('%b %d, %Y') }}</span>
+        <span class="type-p2 text-gray-700 dark:text-slate-300 font-medium">{{ visit.visited_at.strftime('%I:%M %p') }}</span>
+        {% if visit.source == 'face_id' %}
+        <span class="ml-auto text-xs font-medium text-teal-700 dark:text-teal-400 bg-teal-100 dark:bg-teal-900/40 px-2 py-0.5 rounded-full">Face ID</span>
         {% endif %}
       </div>
       {% endfor %}
@@ -214,20 +347,161 @@
     {% endif %}
   </div>
 
-  <!-- Danger zone (admin only) -->
+  <!-- Privacy / DPDP data rights (admin only) -->
   {% if current_user.is_super_admin %}
-  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-red-100 dark:border-red-900/40 p-5">
-    <h3 class="text-sm font-semibold text-red-700 dark:text-red-400 mb-3">Danger Zone</h3>
-    <div class="flex items-center justify-between">
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5"
+       x-data="{ showErase: false }">
+    <div class="flex items-center justify-between mb-1">
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300">Privacy &amp; Data Rights</h3>
+      <a href="{{ url_for('privacy.index') }}" class="type-p3 link-brand hover:underline">Request log →</a>
+    </div>
+
+    {% if member.is_erased %}
+    <div class="flex items-start gap-3 bg-gray-50 dark:bg-slate-900 rounded-lg px-4 py-3 mt-3">
+      <svg class="w-5 h-5 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+      </svg>
       <div>
-        <p class="type-p2 text-gray-600 dark:text-slate-400">Delete this member and all their records.</p>
-        <p class="type-p3 text-gray-400 dark:text-slate-500">This action cannot be undone.</p>
+        <p class="type-p2 text-gray-700 dark:text-slate-300 font-medium">Personal data erased</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+          On {{ member.erased_at.strftime('%d %b %Y') }}. Billing records were kept, pseudonymised,
+          as required for financial record-keeping.
+        </p>
       </div>
-      <form method="POST" action="{{ url_for('members.delete', member_id=member.id) }}"
-            onsubmit="return confirm('Are you sure you want to permanently delete {{ member.full_name }}?')">
+    </div>
+
+    {% else %}
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mb-4">
+      Members can ask for a copy of their data or ask you to erase it. Verify who's asking before you act.
+    </p>
+
+    <div class="space-y-2">
+      <!-- Export -->
+      <div class="flex items-center justify-between gap-4 border border-gray-100 dark:border-slate-700 rounded-xl px-4 py-3">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-gray-800 dark:text-slate-200">Download their data</p>
+          <p class="type-p3 text-gray-400 dark:text-slate-500">Profile, billing, attendance, consents and message history as JSON</p>
+        </div>
+        <a href="{{ url_for('privacy.export_member', member_id=member.id) }}"
+           class="shrink-0 px-3 py-1.5 text-xs font-medium btn-brand-soft rounded-lg transition-colors whitespace-nowrap">
+          Export
+        </a>
+      </div>
+
+      <!-- Log a request -->
+      <div class="flex items-center justify-between gap-4 border border-gray-100 dark:border-slate-700 rounded-xl px-4 py-3">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-gray-800 dark:text-slate-200">Log a request</p>
+          <p class="type-p3 text-gray-400 dark:text-slate-500">Record that {{ member.first_name }} asked, to fulfil once identity is verified</p>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <form method="POST" action="{{ url_for('privacy.log_request', member_id=member.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="request_type" value="export">
+            <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors whitespace-nowrap">
+              Export ask
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('privacy.log_request', member_id=member.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="request_type" value="erasure">
+            <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors whitespace-nowrap">
+              Erasure ask
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Erase -->
+      <div class="border border-red-100 dark:border-red-900/40 rounded-xl px-4 py-3">
+        <button type="button" @click="showErase = !showErase" class="flex items-center justify-between w-full text-left gap-4">
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-red-700 dark:text-red-400">Erase their personal data</span>
+            <span class="block type-p3 text-gray-400 dark:text-slate-500">Irreversible. Billing history is kept, pseudonymised.</span>
+          </span>
+          <svg class="w-4 h-4 text-red-400 shrink-0 transition-transform" :class="showErase ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+
+        <div x-show="showErase" x-cloak class="mt-3 pt-3 border-t border-red-100 dark:border-red-900/40">
+          <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2.5 mb-3">
+            <p class="type-p3 text-amber-800 dark:text-amber-300">
+              <span class="font-semibold">Erasing here doesn't reach outside GYMPro.</span>
+              {% if member.face_id_external_id %}
+              Their face enrollment still lives on the access-control device — delete it there too.
+              {% endif %}
+              WhatsApp messages already delivered can't be recalled.
+            </p>
+          </div>
+          <p class="type-p3 text-gray-500 dark:text-slate-400 mb-2">
+            Deletes their profile details, attendance and message history. Type
+            <span class="font-semibold text-gray-700 dark:text-slate-300">{{ member.full_name }}</span> to confirm:
+          </p>
+          <form method="POST" action="{{ url_for('privacy.erase', member_id=member.id) }}" class="space-y-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="confirm_name" required autocomplete="off"
+                   placeholder="{{ member.full_name }}"
+                   class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-red-400">
+            <button type="submit"
+                    class="w-full px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors">
+              Erase Personal Data
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Danger zone (admin only) -->
+  {#  Collapsed by default and gated on typing the member's name — the same
+      guard the Privacy erase panel above uses. Deleting is now only reachable
+      from this page (removed from the members list) so it's always deliberate. #}
+  {% if current_user.is_super_admin %}
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-red-100 dark:border-red-900/40 p-5"
+       x-data="{ showDelete: false }">
+    <h3 class="text-sm font-semibold text-red-700 dark:text-red-400 mb-3">Danger Zone</h3>
+
+    <button type="button" @click="showDelete = !showDelete"
+            class="flex items-center justify-between w-full text-left gap-4">
+      <span class="min-w-0">
+        <span class="block type-p2 text-gray-700 dark:text-slate-300 font-medium">Delete this member permanently</span>
+        <span class="block type-p3 text-gray-400 dark:text-slate-500">
+          Wipes their profile, billing history, attendance and messages. Cannot be undone.
+        </span>
+      </span>
+      <svg class="w-4 h-4 text-red-400 shrink-0 transition-transform" :class="showDelete ? 'rotate-180' : ''"
+           fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+
+    <div x-show="showDelete" x-cloak class="mt-4 pt-4 border-t border-red-100 dark:border-red-900/40">
+
+      <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2.5 mb-3">
+        <p class="type-p3 text-amber-800 dark:text-amber-300">
+          <span class="font-semibold">Acting on a data-deletion request?</span>
+          Use <a href="{{ url_for('privacy.index') }}" class="underline font-medium">Privacy&nbsp;&rarr;&nbsp;erase</a>
+          instead. It scrubs their personal data but keeps the billing records you're
+          required to retain — this button destroys those too.
+        </p>
+      </div>
+
+      <p class="type-p3 text-gray-500 dark:text-slate-400 mb-2">
+        Type <span class="font-semibold text-gray-700 dark:text-slate-300">{{ member.full_name }}</span> to confirm:
+      </p>
+      <form method="POST" action="{{ url_for('members.delete', member_id=member.id) }}" class="space-y-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="confirm_name" required autocomplete="off"
+               placeholder="{{ member.full_name }}"
+               class="w-full px-3 py-2 text-sm border border-gray-200 dark:border-slate-600 rounded-lg
+                      bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                      focus:outline-none focus:ring-2 focus:ring-red-400">
         <button type="submit"
-                class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors">
-          Delete Member
+                class="w-full px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors">
+          Permanently Delete {{ member.first_name }}
         </button>
       </form>
     </div>

@@ -30,7 +30,8 @@
       </span>
     </div>
     <p class="type-p2 text-gray-400 dark:text-slate-500 mt-0.5">
-      Slug: <code class="font-mono text-gray-600 dark:text-slate-300">/{{ gym.slug }}</code>
+      URL: <a href="/{{ gym.slug }}/dashboard" target="_blank" rel="noopener"
+              class="font-mono text-gray-600 dark:text-slate-300 hover:underline">/{{ gym.slug }}</a>
       {% if gym.address %} · {{ gym.address }}{% endif %}
     </p>
     {% if gym.phone or gym.email %}
@@ -44,6 +45,7 @@
     {% if gym.is_active and gym.admin %}
     <form method="POST" action="{{ url_for('operator.impersonate', gym_id=gym.id) }}"
           onsubmit="return confirm('Log in as {{ gym.admin.name }} ({{ gym.name }})?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit"
               class="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-xl bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:hover:bg-amber-900/30 transition-colors border border-amber-200 dark:border-amber-800">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -62,6 +64,7 @@
     </a>
     <form method="POST" action="{{ url_for('operator.toggle_gym', gym_id=gym.id) }}"
           onsubmit="return confirm('{% if gym.is_active %}Suspend{% else %}Activate{% endif %} {{ gym.name }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button type="submit"
               class="px-4 py-2 text-sm font-semibold rounded-xl transition-colors
                 {% if gym.is_active %}bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400
@@ -186,6 +189,90 @@
   </div>
 </div>
 
+<!-- Face ID access control -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center gap-2">
+      <h2 class="type-h3 text-gray-900 dark:text-white">Face ID Access Control</h2>
+      {% if gym.face_id_enabled %}
+      <span class="text-xs px-2 py-0.5 rounded-full font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-400">Enabled</span>
+      {% else %}
+      <span class="text-xs px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">Not enabled</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if gym.face_id_enabled %}
+  <p class="type-p3 text-gray-500 dark:text-slate-400 mb-2">
+    Hand this URL to whoever installs the access-control terminal — it's what the device POSTs scan events to.
+    Never store this anywhere public.
+  </p>
+  <div class="flex items-center gap-2 mb-4">
+    <code id="faceid-webhook-url"
+          class="flex-1 text-xs font-mono px-3 py-2 rounded-lg bg-gray-50 dark:bg-slate-900 text-gray-700 dark:text-slate-300 border border-gray-200 dark:border-slate-700 overflow-x-auto whitespace-nowrap">{{ url_for('faceid.scan_event', gym_id=gym.id, secret=gym.face_id_webhook_secret, _external=True) }}</code>
+    <button type="button"
+            onclick="navigator.clipboard.writeText(document.getElementById('faceid-webhook-url').textContent)"
+            class="shrink-0 px-3 py-2 text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors">
+      Copy
+    </button>
+  </div>
+  {# Door policy for lapsed members. Default is off (fail open) — see the
+     comment on Gym.face_id_deny_expired for why. #}
+  <div class="border border-gray-100 dark:border-slate-700 rounded-xl p-4 mb-4">
+    <form method="POST" action="{{ url_for('operator.toggle_face_id', gym_id=gym.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="set_deny_expired">
+      <label class="flex items-start justify-between gap-4 cursor-pointer">
+        <span class="min-w-0">
+          <span class="block text-sm font-medium text-gray-800 dark:text-slate-200">
+            Refuse entry when a membership has expired
+          </span>
+          <span class="block type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+            Off: they're let in and staff get a flagged arrival. On: the door is told to
+            refuse and no visit is recorded — staff still get notified either way.
+            Only works if the terminal reads the webhook's response.
+          </span>
+        </span>
+        <input type="checkbox" name="deny_expired" onchange="this.form.submit()"
+               {% if gym.face_id_deny_expired %}checked{% endif %}
+               class="mt-0.5 w-5 h-5 shrink-0 rounded border-gray-300 dark:border-slate-600 accent-green-700">
+      </label>
+    </form>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <form method="POST" action="{{ url_for('operator.toggle_face_id', gym_id=gym.id) }}"
+          onsubmit="return confirm('Regenerate the webhook secret? The old URL stops working immediately — update it on the device too.')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="regenerate_secret">
+      <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 rounded-lg border border-amber-200 dark:border-amber-800 transition-colors">
+        Regenerate Secret
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('operator.toggle_face_id', gym_id=gym.id) }}"
+          onsubmit="return confirm('Disable Face ID for {{ gym.name }}? The webhook stops accepting scans until re-enabled.')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="disable">
+      <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
+        Disable
+      </button>
+    </form>
+  </div>
+  {% else %}
+  <p class="type-p3 text-gray-500 dark:text-slate-400 mb-3">
+    Turns on a webhook this gym's Face ID access-control terminal can push scan events to — appears as
+    automatic check-ins/check-outs, same as manual attendance. Independent of plan tier.
+  </p>
+  <form method="POST" action="{{ url_for('operator.toggle_face_id', gym_id=gym.id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="enable">
+    <button type="submit" class="px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors">
+      Enable Face ID for {{ gym.name }}
+    </button>
+  </form>
+  {% endif %}
+</div>
+
 <!-- Staff list -->
 <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
   <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
@@ -254,6 +341,7 @@
       </div>
 
       <form method="POST" action="{{ url_for('operator.set_plan', gym_id=gym.id) }}" class="space-y-5">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <!-- Plan cards -->
         <div class="grid grid-cols-3 gap-3">
@@ -361,6 +449,7 @@
     <form method="POST" action="{{ url_for('operator.reset_password', gym_id=gym.id) }}"
           x-data="{ pw: '', cpw: '', show: false }"
           class="space-y-4">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
       <input type="hidden" name="user_id" :value="resetUserId">
 

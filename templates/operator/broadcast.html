@@ -26,6 +26,7 @@
       <form method="POST" action="{{ url_for('operator.broadcast') }}"
             x-data="{ target: '{{ form.get('target', 'all') }}', charCount: {{ form.get('message', '')|length }} }"
             class="p-6 space-y-5">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <!-- Subject -->
         <div>

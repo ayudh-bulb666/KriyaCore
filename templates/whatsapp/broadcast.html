@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+{% block title %}WhatsApp Announcement{% endblock %}
+{% block heading %}New WhatsApp Announcement{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 dark:border-slate-700">
+      <div class="w-9 h-9 rounded-xl avatar-brand flex items-center justify-center text-lg">📣</div>
+      <div>
+        <h2 class="type-h3 text-gray-900 dark:text-white">Compose</h2>
+        <p class="type-p3 text-gray-400 dark:text-slate-500">Sent as a "Gym Announcement" template — your text fills the one variable slot</p>
+      </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('whatsapp.broadcast') }}"
+          x-data="{ target: '{{ form.get('target', 'all') }}', charCount: {{ form.get('message', '')|length }} }"
+          class="p-6 space-y-5">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <!-- Kind -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">What's this about?</label>
+        <div class="flex gap-3">
+          <label class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-bg dark:has-[:checked]:bg-brand-bg-d">
+            <input type="radio" name="kind" value="closure" {% if form.get('kind', 'event') == 'closure' %}checked{% endif %} class="accent-current">
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Gym Closed</span>
+          </label>
+          <label class="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-slate-600 cursor-pointer has-[:checked]:border-brand has-[:checked]:bg-brand-bg dark:has-[:checked]:bg-brand-bg-d">
+            <input type="radio" name="kind" value="event" {% if form.get('kind', 'event') != 'closure' %}checked{% endif %} class="accent-current">
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Event / Other</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Message -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1.5">
+          Message <span class="text-red-500">*</span>
+        </label>
+        <textarea name="message" required rows="4" maxlength="500"
+                  x-on:input="charCount = $event.target.value.length"
+                  placeholder="e.g. We'll be closed tomorrow, 26 Aug, for maintenance. Back to normal hours the day after!"
+                  class="w-full px-4 py-2.5 text-sm border border-gray-200 dark:border-slate-600 rounded-xl
+                         bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                         focus:outline-none focus:ring-2 focus-brand resize-none">{{ form.get('message', '') }}</textarea>
+        <p class="text-right type-p3 text-gray-400 dark:text-slate-500 mt-1">
+          <span x-text="charCount"></span> / 500
+        </p>
+      </div>
+
+      <!-- Recipients -->
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Recipients</label>
+        <div class="flex gap-3 mb-3">
+          <label class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border cursor-pointer transition-colors"
+                 :style="target === 'all' ? 'border-color:var(--brand);background:var(--brand-bg);' : 'border-color:#e5e7eb;background:white;'"
+                 @click="target = 'all'">
+            <input type="radio" name="target" value="all" x-model="target" class="hidden">
+            <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors"
+                 :style="target === 'all' ? 'border-color:var(--brand);' : 'border-color:#9ca3af;'">
+              <div class="w-2 h-2 rounded-full dot-brand transition-opacity" :style="target === 'all' ? 'opacity:1;' : 'opacity:0;'"></div>
+            </div>
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">
+              All opted-in members <span class="text-gray-400 dark:text-slate-500 font-normal">({{ members|length }})</span>
+            </span>
+          </label>
+          <label class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border cursor-pointer transition-colors"
+                 :style="target === 'select' ? 'border-color:var(--brand);background:var(--brand-bg);' : 'border-color:#e5e7eb;background:white;'"
+                 @click="target = 'select'">
+            <input type="radio" name="target" value="select" x-model="target" class="hidden">
+            <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors"
+                 :style="target === 'select' ? 'border-color:var(--brand);' : 'border-color:#9ca3af;'">
+              <div class="w-2 h-2 rounded-full dot-brand transition-opacity" :style="target === 'select' ? 'opacity:1;' : 'opacity:0;'"></div>
+            </div>
+            <span class="text-sm font-medium text-gray-700 dark:text-slate-300">Selected members</span>
+          </label>
+        </div>
+
+        {% if not members %}
+        <p class="type-p3 text-amber-600 dark:text-amber-400">No members have opted in to WhatsApp yet — announcements have nowhere to go until at least one does.</p>
+        {% endif %}
+
+        <div x-show="target === 'select'" x-cloak
+             class="border border-gray-200 dark:border-slate-600 rounded-xl overflow-hidden">
+          <div class="bg-gray-50 dark:bg-slate-700/50 px-4 py-2 border-b border-gray-100 dark:border-slate-700">
+            <p class="text-xs font-semibold text-gray-500 dark:text-slate-400">Only opted-in members are listed here</p>
+          </div>
+          <div class="max-h-48 overflow-y-auto p-3 space-y-1">
+            {% for m in members %}
+            <label class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors">
+              <input type="checkbox" name="member_ids" value="{{ m.id }}" class="w-4 h-4 rounded border-gray-300 dark:border-slate-500">
+              <span class="type-p2 text-gray-700 dark:text-slate-300">{{ m.full_name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-1">
+        <a href="{{ url_for('whatsapp.index') }}" class="type-p2 text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors">
+          Cancel
+        </a>
+        <button type="submit"
+                onclick="return confirm('Send this announcement? This cannot be undone.')"
+                class="inline-flex items-center gap-2 px-5 py-2.5 btn-brand text-sm font-semibold rounded-xl transition-colors shadow-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+          Send Announcement
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+{% endblock %}

@@ -7,6 +7,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}Operator{% endblock %} — GYMPro Platform</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
@@ -63,6 +64,13 @@
               {% if request.endpoint == 'operator.broadcast' %}bg-white/20 text-white{% else %}text-green-200 hover:text-white hover:bg-white/10{% endif %}">
       📢 Broadcast
     </a>
+    {% if SENTRY_ENABLED %}
+    <a href="{{ url_for('operator.sentry_test') }}" target="_blank" rel="noopener"
+       title="Fires a test error — check your Sentry dashboard for it"
+       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors text-green-200 hover:text-white hover:bg-white/10">
+      🩺 Test Sentry
+    </a>
+    {% endif %}
   </nav>
 
   <div class="ml-auto flex items-center gap-3">
@@ -82,6 +90,10 @@
     <a href="{{ url_for('auth.change_password') }}"
        class="text-xs text-green-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10">
       Change password
+    </a>
+    <a href="{{ url_for('auth.two_factor') }}"
+       class="text-xs text-green-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10">
+      2FA{% if current_user.totp_enabled %} <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-400 align-middle"></span>{% endif %}
     </a>
     <a href="{{ url_for('auth.logout') }}"
        class="text-xs text-green-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10">

@@ -7,6 +7,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}GYMPro{% endblock %} — {{ current_gym.name if current_gym else 'GYMPro' }}</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}" />
 
   <!-- PWA -->
   <link rel="manifest" href="/static/manifest.json" />
@@ -45,7 +46,6 @@
     .bg-brand         { background-color: var(--brand) !important; }
     .bg-brand-dark    { background-color: var(--brand-dark) !important; }
     .text-brand       { color: var(--brand) !important; }
-    .border-brand     { border-color: var(--brand) !important; }
 
     /* Primary filled button */
     .btn-brand        { background-color: var(--brand) !important; color: #fff !important; }
@@ -197,6 +197,7 @@
     <span class="text-amber-700 text-xs hidden sm:inline">· Any changes you make will affect real data</span>
   </div>
   <form method="POST" action="{{ url_for('operator.exit_impersonation') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit"
             class="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-amber-900/15 hover:bg-amber-900/25 text-amber-900 rounded-lg transition-colors border border-amber-900/20">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -351,6 +352,36 @@
       <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 rounded-full uppercase tracking-wide">Pro</span>
     </span>
     {% endif %}
+
+    {% if plan_features.get('whatsapp', True) %}
+    <a href="{{ url_for('whatsapp.index') }}"
+       class="nav-link {% if 'whatsapp' in request.endpoint %}active{% endif %}">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+      </svg>
+      WhatsApp
+    </a>
+    {% else %}
+    <span class="nav-link opacity-40 cursor-not-allowed" title="Upgrade to Pro">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+      </svg>
+      WhatsApp
+      <span class="ml-auto text-[9px] font-bold px-1.5 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 rounded-full uppercase tracking-wide">Pro</span>
+    </span>
+    {% endif %}
+
+    {# Not plan-gated — DPDP data rights are a legal obligation, not a perk. #}
+    <a href="{{ url_for('privacy.index') }}"
+       class="nav-link {% if 'privacy' in request.endpoint %}active{% endif %}">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+      </svg>
+      Privacy
+    </a>
     {% endif %}
 
     {% if plan %}
@@ -399,6 +430,17 @@
               d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
       </svg>
       Change password
+    </a>
+    <a href="{{ url_for('auth.two_factor') }}"
+       class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-800 dark:hover:text-white">
+      <svg style="width:18px;height:18px" class="shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      </svg>
+      Two-factor auth
+      {% if current_user.totp_enabled %}
+      <span class="ml-auto w-1.5 h-1.5 rounded-full bg-green-500"></span>
+      {% endif %}
     </a>
     <a href="{{ url_for('auth.logout') }}"
        class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-500 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-800 dark:hover:text-white">
@@ -555,11 +597,14 @@ function notifPanel() {
     toggle() { this.open = !this.open; if (this.open && this.items.length === 0) this.load(); },
     async load() {
       this.loading = true;
-      try { const r = await fetch('/notifications/api/feed'); this.items = await r.json(); }
+      try { const r = await fetch('{{ url_for("notifications.api_feed") }}'); this.items = await r.json(); }
       finally { this.loading = false; }
     },
     async markAllRead() {
-      await fetch('/notifications/mark-read', { method: 'POST' });
+      await fetch('{{ url_for("notifications.mark_all_read") }}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+      });
       this.items = this.items.map(n => ({ ...n, is_read: true }));
     }
   };

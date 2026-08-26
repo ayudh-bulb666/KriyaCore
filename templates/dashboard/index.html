@@ -13,6 +13,8 @@
 {% endblock %}
 
 {% block content %}
+
+{% include 'dashboard/_view_toggle.html' %}
 <!-- Page heading -->
 <div class="mb-6">
   <h2 class="type-display text-gray-900 dark:text-white">Good to see you 👋</h2>
@@ -128,9 +130,9 @@
         </svg>
       </a>
     </div>
-    <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">{{ stats.checkins_today }}</p>
-    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Check-ins Today</p>
-    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">{{ stats.currently_in }} currently in gym</p>
+    <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">{{ stats.visits_today }}</p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Visits Today</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">{{ stats.visits_this_week }} in the last 7 days</p>
   </div>
 
 </div>

@@ -1,13 +1,14 @@
 import base64
+import secrets
 from flask import Blueprint, render_template, redirect, url_for, request, flash, session
 from flask_login import login_required, current_user, login_user
 from werkzeug.security import generate_password_hash
-from datetime import date, timedelta
+from datetime import date
 from sqlalchemy import func
 
 from .models import db, Gym, User, Member, MemberMembership, MembershipPlan, AuditLog, Notification
-from .helpers import role_required
 from .plans import PLANS
+from .tenant import RESERVED_SLUGS
 
 
 def log_action(action: str, gym=None, detail: str = None):
@@ -63,11 +64,7 @@ def index():
         MemberMembership.payment_date   >= this_month,
     ).scalar() or 0
 
-    expiring_across = MemberMembership.query.filter(
-        MemberMembership.status   == 'active',
-        MemberMembership.end_date >= today,
-        MemberMembership.end_date <= today + timedelta(days=7),
-    ).count()
+    expiring_across = MemberMembership.expiring_soon_query().count()
 
     # ── Per-gym stats ─────────────────────────────────────────────────────────
     for gym in gyms:
@@ -107,6 +104,17 @@ def index():
     )
 
 
+@operator_bp.route('/sentry-test')
+@login_required
+@_platform_required
+def sentry_test():
+    """Deliberately raises so you can confirm an event lands in the Sentry
+    dashboard after setting SENTRY_DSN. Left unguarded by try/except on
+    purpose — Sentry's Flask integration only captures *unhandled*
+    exceptions."""
+    raise RuntimeError('GYMPro Sentry test — if you see this in Sentry, monitoring is working.')
+
+
 @operator_bp.route('/gyms/new', methods=['GET', 'POST'])
 @login_required
 @_platform_required
@@ -127,6 +135,8 @@ def new_gym():
         if not admin_name:    errors.append('Admin name is required.')
         if not admin_email:   errors.append('Admin email is required.')
         if not admin_pass:    errors.append('Admin password is required.')
+        if slug in RESERVED_SLUGS:
+            errors.append(f'"{slug}" is a reserved word and can\'t be used as a gym URL.')
         if Gym.query.filter_by(slug=slug).first():
             errors.append(f'Slug "{slug}" is already taken.')
         if User.query.filter_by(email=admin_email).first():
@@ -258,6 +268,44 @@ def set_plan(gym_id):
     db.session.commit()
 
     flash(f'"{gym.name}" subscription updated to {PLANS[tier]["label"]}.', 'success')
+    return redirect(url_for('operator.gym_detail', gym_id=gym_id))
+
+
+@operator_bp.route('/gyms/<int:gym_id>/face-id', methods=['POST'])
+@login_required
+@_platform_required
+def toggle_face_id(gym_id):
+    """Enable/disable Face ID for a gym, and (re)generate its webhook
+    secret. This is entirely independent of plan tier — a gym either has
+    the hardware installed or it doesn't."""
+    gym    = Gym.query.get_or_404(gym_id)
+    action = request.form.get('action', '')
+
+    if action == 'enable':
+        gym.face_id_enabled = True
+        if not gym.face_id_webhook_secret:
+            gym.face_id_webhook_secret = secrets.token_hex(32)
+        log_action('face_id_enabled', gym=gym, detail='Face ID access control enabled')
+        flash(f'Face ID enabled for "{gym.name}". Hand the webhook URL below to whoever installs the hardware.', 'success')
+
+    elif action == 'disable':
+        gym.face_id_enabled = False
+        log_action('face_id_disabled', gym=gym, detail='Face ID access control disabled')
+        flash(f'Face ID disabled for "{gym.name}".', 'info')
+
+    elif action == 'regenerate_secret':
+        gym.face_id_webhook_secret = secrets.token_hex(32)
+        log_action('face_id_secret_rotated', gym=gym, detail='Webhook secret regenerated')
+        flash('Webhook secret regenerated — update it on the access-control device too, the old URL stops working immediately.', 'warning')
+
+    elif action == 'set_deny_expired':
+        gym.face_id_deny_expired = request.form.get('deny_expired') == 'on'
+        state = 'refused' if gym.face_id_deny_expired else 'let in (and flagged)'
+        log_action('face_id_policy_changed', gym=gym,
+                   detail=f'Lapsed members are now {state} at the door')
+        flash(f'Saved — members with an expired membership are {state}.', 'success')
+
+    db.session.commit()
     return redirect(url_for('operator.gym_detail', gym_id=gym_id))
 
 

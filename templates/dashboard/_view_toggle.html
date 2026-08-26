@@ -1,0 +1,15 @@
+{#  Front desk vs business view. Staff default to front desk and owners to
+    business, but either can switch — in a small gym the owner often works
+    the desk themselves. The choice sticks for the session. #}
+<div class="inline-flex items-center gap-1 bg-gray-100 dark:bg-slate-700/60 rounded-lg p-1 mb-5">
+  <a href="{{ url_for('dashboard.index', view='frontdesk') }}"
+     class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors
+            {% if dashboard_view == 'frontdesk' %}bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm{% else %}text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200{% endif %}">
+    Front desk
+  </a>
+  <a href="{{ url_for('dashboard.index', view='business') }}"
+     class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors
+            {% if dashboard_view == 'business' %}bg-white dark:bg-slate-800 text-gray-900 dark:text-white shadow-sm{% else %}text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200{% endif %}">
+    Business
+  </a>
+</div>

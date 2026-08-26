@@ -6,7 +6,7 @@ from .models import db, User
 from .helpers import role_required
 from .plans import plan_within_staff_limit, PLANS
 
-staff_bp = Blueprint('staff', __name__, url_prefix='/staff')
+staff_bp = Blueprint('staff', __name__, url_prefix='/<string:gym_slug>/staff')
 
 
 @staff_bp.route('/')

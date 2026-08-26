@@ -227,6 +227,7 @@
               {% if gym.is_active and gym.admin %}
               <form method="POST" action="{{ url_for('operator.impersonate', gym_id=gym.id) }}"
                     onsubmit="return confirm('Log in as {{ gym.name }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="px-2.5 py-1 text-xs font-medium bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg transition-colors border border-amber-200 dark:border-amber-800">
                   👁 Log in as
@@ -235,6 +236,7 @@
               {% endif %}
               <form method="POST" action="{{ url_for('operator.toggle_gym', gym_id=gym.id) }}"
                     onsubmit="return confirm('{% if gym.is_active %}Suspend{% else %}Activate{% endif %} {{ gym.name }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
                         class="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors
                           {% if gym.is_active %}bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400

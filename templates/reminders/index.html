@@ -6,6 +6,7 @@
 {% if email_configured and can_email %}
 <form method="POST" action="{{ url_for('reminders.send') }}"
       onsubmit="return confirm('Send renewal reminders to {{ can_email|length }} member{{ 's' if can_email|length != 1 else '' }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
   <button type="submit"
           class="inline-flex items-center gap-1.5 px-4 py-2 btn-brand text-sm font-medium rounded-lg transition-colors shadow">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,6 +32,7 @@
     <p class="text-sm text-green-700 mt-0.5">Email delivery is ready. Send a test to verify your inbox.</p>
   </div>
   <form method="POST" action="{{ url_for('reminders.test_email') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit"
             class="shrink-0 px-3 py-1.5 btn-brand-soft text-xs font-medium rounded-lg transition-colors whitespace-nowrap">
       Send Test
@@ -277,6 +279,7 @@ export MAIL_DEFAULT_SENDER="GYMPro &lt;your-gym@gmail.com&gt;"</pre>
         {% if email_configured %}
         <form method="POST" action="{{ url_for('reminders.send') }}"
               onsubmit="return confirm('Send renewal reminders to {{ can_email|length }} member{{ 's' if can_email|length != 1 else '' }}?')">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit"
                   class="w-full px-4 py-2.5 btn-brand text-sm font-medium rounded-lg transition-colors">
             Send {{ can_email|length }} Reminder{{ 's' if can_email|length != 1 else '' }}

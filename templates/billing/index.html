@@ -62,7 +62,7 @@
           <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Amount</th>
           <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Status</th>
           <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Payment</th>
-          <th class="px-4 py-3"></th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
@@ -115,24 +115,71 @@
               {{ mem.payment_status|capitalize }}
             </span>
           </td>
+          {#  Two slots, fixed width, always rendered.
+
+              Slot 1 holds Mark Paid OR Invoice — those are mutually exclusive
+              (a membership is either paid or it isn't), so they can share a
+              position without ever colliding, and it keeps the column narrow.
+              Slot 2 holds Renew.
+
+              Fixed slots matter: without them the buttons reflow per row, so
+              the same screen position is "Renew" on one line and "Invoice" on
+              the next — that's what makes mis-clicks easy when scanning down.
+
+              Weight matches consequence: Mark Paid records money and messages
+              the member (solid + confirm), Renew starts a new cycle (outlined
+              + confirm), Invoice only reads (quiet, no confirm). #}
           <td class="px-4 py-3">
-            <div class="flex items-center gap-2">
-              {% if mem.payment_status != 'paid' %}
-              <form method="POST" action="{{ url_for('billing.pay', membership_id=mem.id) }}">
-                <button type="submit"
-                        class="px-2.5 py-1 btn-brand-soft text-xs font-medium rounded-lg transition-colors whitespace-nowrap">
-                  Mark Paid
-                </button>
-              </form>
-              {% endif %}
-              {% if mem.status == 'active' %}
-              <form method="POST" action="{{ url_for('billing.renew', membership_id=mem.id) }}">
-                <button type="submit"
-                        class="px-2.5 py-1 btn-brand-soft text-xs font-medium rounded-lg transition-colors">
-                  Renew
-                </button>
-              </form>
-              {% endif %}
+            <div class="flex items-center justify-end gap-2.5">
+
+              <div class="w-[104px] flex justify-end shrink-0">
+                {% if mem.payment_status != 'paid' %}
+                <form method="POST" action="{{ url_for('billing.pay', membership_id=mem.id) }}"
+                      onsubmit="return confirm('Record payment of \u20b9{{ '%.2f'|format(mem.amount) }} from {{ mem.member.full_name }}?{% if plan_features.get('whatsapp') %}\n\nA confirmation message will be sent to them on WhatsApp.{% endif %}')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit"
+                          class="inline-flex items-center gap-1.5 px-3 py-1.5 btn-brand text-xs font-semibold rounded-lg shadow-sm transition-colors whitespace-nowrap">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Mark Paid
+                  </button>
+                </form>
+                {% else %}
+                <a href="{{ url_for('billing.invoice', membership_id=mem.id) }}" target="_blank" rel="noopener"
+                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap
+                          text-gray-500 dark:text-slate-400
+                          hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-200
+                          transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  Invoice
+                </a>
+                {% endif %}
+              </div>
+
+              <div class="w-[88px] flex justify-end shrink-0">
+                {% if mem.status == 'active' %}
+                <form method="POST" action="{{ url_for('billing.renew', membership_id=mem.id) }}"
+                      onsubmit="return confirm('Start a new {{ mem.plan.name }} cycle for {{ mem.member.full_name }}?\n\nThe current one is marked expired and a new unpaid membership is created.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit"
+                          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap
+                                 border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                                 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600
+                                 hover:border-gray-400 dark:hover:border-slate-400 transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Renew
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+
             </div>
           </td>
         </tr>
