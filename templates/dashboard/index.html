@@ -15,21 +15,140 @@
 {% block content %}
 
 {% include 'dashboard/_view_toggle.html' %}
-<!-- Page heading -->
+
 <div class="mb-6">
   <h2 class="type-display text-gray-900 dark:text-white">Good to see you 👋</h2>
   <p class="type-p2 text-gray-500 dark:text-slate-400 mt-0.5">Here's what's happening at your gym today.</p>
 </div>
 
-<!-- ── Stat Cards ──────────────────────────────────────────────────────────── -->
-<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
+{#  The page is ordered by how soon you need to act on it: things happening
+    today first, the shape of the membership second, money third. A number
+    you can still do something about outranks a number you can only read. #}
 
-  <!-- Hero card — Total Members (brand colour) -->
-  <div class="xl:col-span-1 relative rounded-2xl p-5 overflow-hidden shadow-lg group bg-brand-dark" style="background-color:var(--brand-dark)">
-    <!-- decorative circles -->
+<!-- ══ 1. TODAY ═══════════════════════════════════════════════════════════ -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+
+  <!-- Expiring in 7 days — the single most actionable number on the page -->
+  <div class="rounded-2xl border shadow-sm overflow-hidden
+              {% if stats.expiring_soon %}bg-amber-50/60 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/40
+              {% else %}bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700{% endif %}">
+    <div class="flex items-start justify-between px-6 pt-5 pb-4">
+      <div>
+        <div class="flex items-baseline gap-2.5">
+          <span class="text-4xl font-extrabold {% if stats.expiring_soon %}text-amber-700 dark:text-amber-400{% else %}text-gray-900 dark:text-white{% endif %}">
+            {{ stats.expiring_soon }}
+          </span>
+          <span class="text-sm font-bold text-gray-700 dark:text-slate-300">Expiring in 7 days</span>
+        </div>
+        <p class="type-p3 text-gray-500 dark:text-slate-400 mt-1">
+          {% if stats.expiring_soon %}Catch them while they're still coming in{% else %}Nothing expiring this week{% endif %}
+        </p>
+      </div>
+      <a href="{{ url_for('billing.index', status='expiring') }}"
+         class="shrink-0 text-xs font-semibold link-brand whitespace-nowrap">View all →</a>
+    </div>
+
+    {% if renewal_alerts %}
+    <div class="divide-y divide-amber-100/70 dark:divide-slate-700/50 border-t border-amber-100 dark:border-slate-700/50">
+      {% for alert in renewal_alerts[:5] %}
+      <a href="{{ url_for('members.detail', member_id=alert.member_id) }}#membership"
+         class="flex items-center gap-3 px-6 py-2.5 hover:bg-white/70 dark:hover:bg-slate-700/40 transition-colors group">
+        <div class="w-8 h-8 rounded-full avatar-brand flex items-center justify-center text-xs font-bold shrink-0">
+          {{ alert.member.initials }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate group-hover-brand transition-colors">
+            {{ alert.member.full_name }}
+          </p>
+          <p class="type-p3 text-gray-500 dark:text-slate-400 truncate">{{ alert.plan.name }} · ₹{{ "%.0f"|format(alert.amount) }}</p>
+        </div>
+        <span class="shrink-0 text-xs font-bold px-2 py-0.5 rounded
+          {% if alert.days_left <= 1 %}text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30
+          {% elif alert.days_left <= 3 %}text-amber-800 bg-amber-100 dark:text-amber-400 dark:bg-amber-900/30
+          {% else %}text-gray-600 bg-gray-100 dark:text-slate-400 dark:bg-slate-700{% endif %}">
+          {% if alert.days_left == 0 %}Today{% elif alert.days_left == 1 %}1 day{% else %}{{ alert.days_left }} days{% endif %}
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+    {% if renewal_alerts|length > 5 %}
+    <a href="{{ url_for('billing.index', status='expiring') }}"
+       class="block px-6 py-2.5 text-xs font-semibold link-brand border-t border-amber-100 dark:border-slate-700/50">
+      {{ renewal_alerts|length - 5 }} more →
+    </a>
+    {% endif %}
+    {% else %}
+    <div class="px-6 pb-6 pt-2 flex items-center gap-2 type-p3 text-green-700 dark:text-green-400">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+      </svg>
+      All memberships are good for the next week.
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Who came in today -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+    <div class="flex items-start justify-between px-6 pt-5 pb-4">
+      <div>
+        <div class="flex items-baseline gap-2.5">
+          <span class="text-4xl font-extrabold text-gray-900 dark:text-white">{{ stats.visits_today }}</span>
+          <span class="text-sm font-bold text-gray-700 dark:text-slate-300">Visited today</span>
+        </div>
+        <p class="type-p3 text-gray-500 dark:text-slate-400 mt-1">
+          {{ stats.unique_today }} unique · {{ stats.visits_this_week }} in the last 7 days
+        </p>
+      </div>
+      <a href="{{ url_for('attendance.index') }}"
+         class="shrink-0 text-xs font-semibold link-brand whitespace-nowrap">View all →</a>
+    </div>
+
+    {% if arrivals_today %}
+    <div class="divide-y divide-gray-50 dark:divide-slate-700/50 border-t border-gray-100 dark:border-slate-700/50">
+      {% for a in arrivals_today[:5] %}
+      <a href="{{ url_for('members.detail', member_id=a.member_id) }}"
+         class="flex items-center gap-3 px-6 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors group">
+        <div class="w-8 h-8 rounded-full avatar-brand flex items-center justify-center text-xs font-bold shrink-0">
+          {{ a.member.initials }}
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate group-hover-brand transition-colors">
+            {{ a.member.full_name }}
+          </p>
+          <p class="type-p3 text-gray-400 dark:text-slate-500">
+            {{ a.visited_at.strftime('%I:%M %p') }}{% if a.source == 'face_id' %} · Face ID{% endif %}
+          </p>
+        </div>
+        {% if a.membership_status in ('expired', 'none') %}
+        <span class="shrink-0 text-xs font-bold px-2 py-0.5 rounded text-red-700 bg-red-100 dark:text-red-400 dark:bg-red-900/30">
+          Lapsed
+        </span>
+        {% endif %}
+      </a>
+      {% endfor %}
+    </div>
+    {% if arrivals_today|length > 5 %}
+    <a href="{{ url_for('attendance.index') }}"
+       class="block px-6 py-2.5 text-xs font-semibold link-brand border-t border-gray-100 dark:border-slate-700/50">
+      {{ arrivals_today|length - 5 }} more →
+    </a>
+    {% endif %}
+    {% else %}
+    <div class="px-6 pb-6 pt-2 type-p3 text-gray-400 dark:text-slate-500">
+      No arrivals logged yet today.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ══ 2. MEMBERSHIP ══════════════════════════════════════════════════════ -->
+<h3 class="type-h3 text-gray-900 dark:text-white mb-3">Membership</h3>
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+
+  <!-- Total Members (hero) -->
+  <div class="relative rounded-2xl p-5 overflow-hidden shadow-lg" style="background-color:var(--brand-dark)">
     <div class="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/5"></div>
     <div class="absolute -bottom-8 -right-2 w-32 h-32 rounded-full bg-white/5"></div>
-
     <div class="relative">
       <div class="flex items-start justify-between mb-4">
         <div class="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
@@ -46,13 +165,13 @@
         </a>
       </div>
       <p class="text-4xl font-extrabold text-white mb-1">{{ stats.total_members }}</p>
-      <p class="text-sm font-semibold text-green-200">Total Members</p>
-      <p class="text-xs text-green-300 mt-1">{{ stats.active_members }} active memberships</p>
+      <p class="text-sm font-semibold text-white/80">Total Members</p>
+      <p class="text-xs text-white/60 mt-1">{{ stats.active_members }} active</p>
     </div>
   </div>
 
-  <!-- Card — New This Month -->
-  <div class="relative bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm group">
+  <!-- New This Month -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
     <div class="flex items-start justify-between mb-4">
       <div class="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
         <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -69,32 +188,125 @@
     </div>
     <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">{{ stats.new_this_month }}</p>
     <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">New This Month</p>
-    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">New sign-ups in {{ now.strftime('%B') }}</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Sign-ups in {{ now.strftime('%B') }}</p>
   </div>
 
-  <!-- Card — Expiring Soon -->
-  <div class="relative bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm group">
+  {#  Two drop-off numbers, not one. Lapsed already left; going quiet is the
+      one you can still do something about. Averaging them into a single
+      "churn" figure would bury the actionable half. #}
+
+  <!-- Drop-off: lapsed -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border shadow-sm
+              {% if stats.lapsed %}border-red-200 dark:border-red-800/40{% else %}border-gray-100 dark:border-slate-700{% endif %}">
     <div class="flex items-start justify-between mb-4">
-      <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
-        <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="w-9 h-9 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/>
         </svg>
       </div>
-      <a href="{{ url_for('reminders.index') }}"
+      <a href="{{ url_for('members.index', state='expired') }}"
          class="w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center justify-center transition-colors">
         <svg class="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M17 7H7M17 7v10"/>
         </svg>
       </a>
     </div>
-    <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">{{ stats.expiring_soon }}</p>
-    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Expiring in 7 Days</p>
-    <p class="text-xs text-amber-500 dark:text-amber-400 mt-1 font-medium">Needs attention</p>
+    <p class="text-4xl font-extrabold {% if stats.lapsed %}text-red-600 dark:text-red-400{% else %}text-gray-900 dark:text-white{% endif %} mb-1">
+      {{ stats.lapsed }}
+    </p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Lapsed</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Expired {{ lapsed_after_days }}+ days, not renewed</p>
   </div>
 
-  <!-- Card — Revenue -->
-  <div class="relative bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm group">
+  <!-- Drop-off: going quiet -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border shadow-sm
+              {% if stats.quiet %}border-amber-200 dark:border-amber-800/40{% else %}border-gray-100 dark:border-slate-700{% endif %}">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+    </div>
+    {% if stats.tracks_visits %}
+    <p class="text-4xl font-extrabold {% if stats.quiet %}text-amber-600 dark:text-amber-400{% else %}text-gray-900 dark:text-white{% endif %} mb-1">
+      {{ stats.quiet }}
+    </p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Going Quiet</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Paid up, not seen in {{ quiet_after_days }}+ days</p>
+    {% else %}
+    <p class="text-4xl font-extrabold text-gray-300 dark:text-slate-600 mb-1">—</p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Going Quiet</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Needs arrivals logged to work</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Member growth + the two drop-off lists -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-8">
+  <div class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6">
+    <div class="flex items-center justify-between mb-5">
+      <div>
+        <h4 class="text-base font-bold text-gray-900 dark:text-white">Member Overview</h4>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Members on the books at each month end</p>
+      </div>
+      <span class="chip-brand text-xs font-semibold px-2.5 py-1 rounded-full border">Last 6 months</span>
+    </div>
+    <div class="h-52"><canvas id="memberChart"></canvas></div>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6">
+    <h4 class="text-base font-bold text-gray-900 dark:text-white mb-1">Worth a call</h4>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mb-4">Members drifting away</p>
+
+    {% if quiet %}
+    <p class="type-h4 text-amber-600 dark:text-amber-400 mb-2">Going quiet</p>
+    <div class="space-y-1 mb-4">
+      {% for m in quiet %}
+      <a href="{{ url_for('members.detail', member_id=m.id) }}"
+         class="flex items-center justify-between gap-2 py-1.5 hover:bg-gray-50 dark:hover:bg-slate-700/40 rounded-lg px-2 -mx-2 transition-colors group">
+        <span class="text-sm text-gray-700 dark:text-slate-300 truncate group-hover-brand">{{ m.full_name }}</span>
+        <span class="type-p3 text-gray-400 dark:text-slate-500 shrink-0">{{ m.days_quiet }}d</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if lapsed %}
+    <p class="type-h4 text-red-600 dark:text-red-400 mb-2">Lapsed</p>
+    <div class="space-y-1">
+      {% for m in lapsed %}
+      <a href="{{ url_for('members.detail', member_id=m.id) }}#membership"
+         class="flex items-center justify-between gap-2 py-1.5 hover:bg-gray-50 dark:hover:bg-slate-700/40 rounded-lg px-2 -mx-2 transition-colors group">
+        <span class="text-sm text-gray-700 dark:text-slate-300 truncate group-hover-brand">{{ m.full_name }}</span>
+        <span class="type-p3 text-gray-400 dark:text-slate-500 shrink-0">{{ m.days_lapsed }}d</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not quiet and not lapsed %}
+    <div class="py-8 text-center">
+      <div class="w-10 h-10 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-2">
+        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <p class="text-sm font-medium text-gray-700 dark:text-slate-300">Nobody drifting</p>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Everyone's paid up and turning up</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ══ 3. REVENUE ═════════════════════════════════════════════════════════ -->
+<h3 class="type-h3 text-gray-900 dark:text-white mb-3">Revenue</h3>
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+
+  <!-- Revenue this month -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
     <div class="flex items-start justify-between mb-4">
       <div class="w-9 h-9 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
         <svg class="w-5 h-5 text-green-700 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,156 +321,110 @@
         </svg>
       </a>
     </div>
-    <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">₹{{ "%.0f"|format(stats.revenue_this_month) }}</p>
+    <p class="text-3xl font-extrabold text-gray-900 dark:text-white mb-1">₹{{ "{:,.0f}".format(stats.revenue_this_month) }}</p>
     <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Revenue This Month</p>
-    <p class="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">Paid memberships</p>
+    <p class="type-p3 text-green-600 dark:text-green-400 mt-1 font-medium">Collected</p>
   </div>
 
-  <!-- Card — Check-ins Today -->
-  <div class="relative bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm group">
+  <!-- Pending revenue -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border shadow-sm
+              {% if stats.pending_revenue %}border-orange-200 dark:border-orange-800/40{% else %}border-gray-100 dark:border-slate-700{% endif %}">
     <div class="flex items-start justify-between mb-4">
-      <div class="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
-        <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div class="w-9 h-9 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
       </div>
-      <a href="{{ url_for('attendance.index') }}"
+      <a href="{{ url_for('billing.index', status='pending') }}"
          class="w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center justify-center transition-colors">
         <svg class="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M17 7H7M17 7v10"/>
         </svg>
       </a>
     </div>
-    <p class="text-4xl font-extrabold text-gray-900 dark:text-white mb-1">{{ stats.visits_today }}</p>
-    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Visits Today</p>
-    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">{{ stats.visits_this_week }} in the last 7 days</p>
+    <p class="text-3xl font-extrabold {% if stats.pending_revenue %}text-orange-600 dark:text-orange-400{% else %}text-gray-900 dark:text-white{% endif %} mb-1">
+      ₹{{ "{:,.0f}".format(stats.pending_revenue) }}
+    </p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Pending Revenue</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      {{ stats.pending_count }} unpaid membership{% if stats.pending_count != 1 %}s{% endif %}
+    </p>
   </div>
 
+  <!-- Expenses incurred -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+        <svg class="w-5 h-5 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+        </svg>
+      </div>
+      {% if current_user.is_super_admin %}
+      <a href="{{ url_for('expenses.index') }}"
+         class="w-7 h-7 rounded-full bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center justify-center transition-colors">
+        <svg class="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M7 17L17 7M17 7H7M17 7v10"/>
+        </svg>
+      </a>
+      {% endif %}
+    </div>
+    <p class="text-3xl font-extrabold text-gray-900 dark:text-white mb-1">₹{{ "{:,.0f}".format(stats.expenses_this_month) }}</p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Expenses Incurred</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      {% if current_user.is_super_admin %}
+        {% if stats.expenses_this_month %}In {{ now.strftime('%B') }}{% else %}Nothing recorded yet{% endif %}
+      {% else %}This month{% endif %}
+    </p>
+  </div>
+
+  <!-- Net — the number that actually says whether the month worked -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-gray-100 dark:border-slate-700 shadow-sm">
+    <div class="flex items-start justify-between mb-4">
+      <div class="w-9 h-9 rounded-xl {% if stats.net_this_month >= 0 %}bg-green-50 dark:bg-green-900/30{% else %}bg-red-50 dark:bg-red-900/30{% endif %} flex items-center justify-center">
+        <svg class="w-5 h-5 {% if stats.net_this_month >= 0 %}text-green-700 dark:text-green-400{% else %}text-red-600 dark:text-red-400{% endif %}"
+             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+        </svg>
+      </div>
+    </div>
+    <p class="text-3xl font-extrabold mb-1 {% if stats.net_this_month >= 0 %}text-gray-900 dark:text-white{% else %}text-red-600 dark:text-red-400{% endif %}">
+      {% if stats.net_this_month < 0 %}−{% endif %}₹{{ "{:,.0f}".format(stats.net_this_month|abs) }}
+    </p>
+    <p class="text-sm font-semibold text-gray-600 dark:text-slate-300">Net This Month</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Collected minus expenses</p>
+  </div>
 </div>
 
-<!-- ── Row 2: Revenue Chart + Renewal Alerts ─────────────────────────────── -->
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
-
-  <!-- Revenue chart (2 cols) -->
+  <!-- Revenue overview -->
   <div class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6">
     <div class="flex items-center justify-between mb-5">
       <div>
-        <h3 class="text-base font-bold text-gray-900 dark:text-white">Revenue Overview</h3>
-        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Monthly paid membership revenue</p>
+        <h4 class="text-base font-bold text-gray-900 dark:text-white">Revenue Overview</h4>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Money in against money out</p>
       </div>
       <span class="chip-brand text-xs font-semibold px-2.5 py-1 rounded-full border">Last 6 months</span>
     </div>
-    <div class="h-52">
-      <canvas id="revenueChart"></canvas>
+    <div class="h-52"><canvas id="revenueChart"></canvas></div>
+    <div class="flex items-center gap-4 mt-4 type-p3">
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-sm" id="legendRevenue"></span>
+        <span class="text-gray-600 dark:text-slate-400">Revenue</span>
+      </span>
+      <span class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-sm bg-gray-300 dark:bg-slate-500"></span>
+        <span class="text-gray-600 dark:text-slate-400">Expenses</span>
+      </span>
     </div>
   </div>
 
-  <!-- Renewal Alerts (1 col) -->
-  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 flex flex-col">
-    <div class="flex items-center justify-between mb-4">
-      <div>
-        <h3 class="text-base font-bold text-gray-900 dark:text-white">Renewals Due</h3>
-        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Next 7 days</p>
-      </div>
-      {% if renewal_alerts %}
-      <span class="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full">{{ renewal_alerts|length }}</span>
-      {% endif %}
-    </div>
-
-    {% if renewal_alerts %}
-    <div class="space-y-2 flex-1 overflow-y-auto">
-      {% for alert in renewal_alerts[:6] %}
-      <a href="{{ url_for('members.detail', member_id=alert.member_id) }}"
-         class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors group">
-        <div class="w-8 h-8 rounded-full avatar-brand flex items-center justify-center text-xs font-bold shrink-0">
-          {{ alert.member.first_name[0] }}{{ alert.member.last_name[0] }}
-        </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-medium text-gray-800 dark:text-slate-200 truncate group-hover-brand transition-colors">
-            {{ alert.member.full_name }}
-          </p>
-          <p class="type-p3 text-gray-400 dark:text-slate-500 truncate">{{ alert.plan.name }}</p>
-        </div>
-        <span class="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded
-          {% if alert.days_left <= 1 %}text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-900/30
-          {% elif alert.days_left <= 3 %}text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/30
-          {% else %}text-gray-600 bg-gray-100 dark:text-slate-400 dark:bg-slate-700{% endif %}">
-          {% if alert.days_left == 0 %}Today
-          {% elif alert.days_left == 1 %}1 day
-          {% else %}{{ alert.days_left }}d{% endif %}
-        </span>
-      </a>
-      {% endfor %}
-    </div>
-    {% if renewal_alerts|length > 6 %}
-    <a href="{{ url_for('reminders.index') }}"
-       class="mt-3 text-xs font-medium link-brand">
-      View all {{ renewal_alerts|length }} →
-    </a>
-    {% endif %}
-    {% else %}
-    <div class="flex-1 flex flex-col items-center justify-center text-center py-4">
-      <div class="w-10 h-10 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center mb-2">
-        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-        </svg>
-      </div>
-      <p class="text-sm font-medium text-gray-700 dark:text-slate-300">All good!</p>
-      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">No renewals in the next 7 days</p>
-    </div>
-    {% endif %}
-  </div>
-</div>
-
-<!-- ── Row 3: Recent Members + Plan Distribution ─────────────────────────── -->
-<div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
-
-  <!-- Recent Members -->
-  <div class="xl:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
-    <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700">
-      <div>
-        <h3 class="text-base font-bold text-gray-900 dark:text-white">Recent Members</h3>
-        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Latest sign-ups</p>
-      </div>
-      <a href="{{ url_for('members.index') }}"
-         class="text-sm font-medium link-brand">View all →</a>
-    </div>
-    <div class="divide-y divide-gray-50 dark:divide-slate-700/50">
-      {% for member in recent_members %}
-      <a href="{{ url_for('members.detail', member_id=member.id) }}"
-         class="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors group">
-        <div class="w-9 h-9 rounded-full avatar-brand flex items-center justify-center text-sm font-bold shrink-0">
-          {{ member.first_name[0] }}{{ member.last_name[0] }}
-        </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 group-hover-brand transition-colors">
-            {{ member.full_name }}
-          </p>
-          <p class="type-p3 text-gray-400 dark:text-slate-500 truncate">{{ member.email or member.phone or '—' }}</p>
-        </div>
-        <div class="text-right shrink-0">
-          <span class="inline-block text-xs px-2 py-0.5 rounded-full font-medium
-            {% if member.status == 'active' %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400
-            {% elif member.status == 'inactive' %}bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400
-            {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400{% endif %}">
-            {{ member.status }}
-          </span>
-          <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
-            {{ member.joining_date.strftime('%b %d') if member.joining_date else '—' }}
-          </p>
-        </div>
-      </a>
-      {% else %}
-      <div class="px-6 py-10 text-center type-p2 text-gray-400 dark:text-slate-500">No members yet.</div>
-      {% endfor %}
-    </div>
-  </div>
-
-  <!-- Plan Distribution Donut -->
+  <!-- Plan Distribution -->
   <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6">
     <div class="mb-4">
-      <h3 class="text-base font-bold text-gray-900 dark:text-white">Plan Distribution</h3>
+      <h4 class="text-base font-bold text-gray-900 dark:text-white">Plan Distribution</h4>
       <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Active memberships by plan</p>
     </div>
     <div class="h-40 flex items-center justify-center">
@@ -268,10 +434,50 @@
   </div>
 </div>
 
+<!-- Recent members — reference, not a call to action, so it sits last -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700">
+    <div>
+      <h4 class="text-base font-bold text-gray-900 dark:text-white">Recent Members</h4>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Latest sign-ups</p>
+    </div>
+    <a href="{{ url_for('members.index') }}" class="text-sm font-medium link-brand">View all →</a>
+  </div>
+  <div class="divide-y divide-gray-50 dark:divide-slate-700/50">
+    {% for member in recent_members %}
+    <a href="{{ url_for('members.detail', member_id=member.id) }}"
+       class="flex items-center gap-4 px-6 py-3.5 hover:bg-gray-50 dark:hover:bg-slate-700/30 transition-colors group">
+      <div class="w-9 h-9 rounded-full avatar-brand flex items-center justify-center text-sm font-bold shrink-0">
+        {{ member.initials }}
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold text-gray-800 dark:text-slate-200 group-hover-brand transition-colors">
+          {{ member.full_name }}
+        </p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 truncate">{{ member.email or member.phone or '—' }}</p>
+      </div>
+      <div class="text-right shrink-0">
+        <span class="inline-block text-xs px-2 py-0.5 rounded-full font-medium
+          {% if member.status == 'active' %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400
+          {% elif member.status == 'inactive' %}bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400
+          {% else %}bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400{% endif %}">
+          {{ member.status }}
+        </span>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+          {{ member.joining_date.strftime('%b %d') if member.joining_date else '—' }}
+        </p>
+      </div>
+    </a>
+    {% else %}
+    <div class="px-6 py-10 text-center type-p2 text-gray-400 dark:text-slate-500">No members yet.</div>
+    {% endfor %}
+  </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/chart-4.4.3.umd.min.js') }}"></script>
 <script>
 const isDark = document.documentElement.classList.contains('dark');
 const gridColor  = isDark ? 'rgba(148,163,184,0.1)'  : 'rgba(0,0,0,0.06)';
@@ -283,7 +489,6 @@ const tooltipTxt = isDark ? '#e2e8f0' : '#1f2937';
 const brandHex = getComputedStyle(document.documentElement)
                    .getPropertyValue('--brand').trim() || '#166534';
 
-// Darken a hex colour by a fraction (0–1)
 function darken(hex, pct) {
   const n = parseInt(hex.replace('#',''), 16);
   const r = Math.max(0, Math.round(((n >> 16) & 255) * (1 - pct)));
@@ -292,17 +497,15 @@ function darken(hex, pct) {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-// Hex → rgba string
 function hexA(hex, alpha) {
   const n = parseInt(hex.replace('#',''), 16);
   return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${alpha})`;
 }
 
-// Bar chart colours — brand fill, darker on hover
-const barFill  = isDark ? hexA(brandHex, 0.8) : brandHex;
-const barHover = darken(brandHex, 0.18);
+const barFill    = isDark ? hexA(brandHex, 0.8) : brandHex;
+const barHover   = darken(brandHex, 0.18);
+const expenseCol = isDark ? 'rgba(148,163,184,0.55)' : 'rgba(148,163,184,0.75)';
 
-// Donut palette — brand at full opacity, then progressively lighter
 const brandPalette = [
   brandHex,
   hexA(brandHex, 0.72),
@@ -311,19 +514,59 @@ const brandPalette = [
   hexA(brandHex, 0.18),
 ];
 
-// ── Revenue Bar Chart ────────────────────────────────────────────────────────
-const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-new Chart(revenueCtx, {
+const rupee = v => '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits: 0});
+
+document.getElementById('legendRevenue').style.background = barFill;
+
+// ── Revenue vs Expenses ──────────────────────────────────────────────────────
+new Chart(document.getElementById('revenueChart'), {
   type: 'bar',
   data: {
     labels: {{ revenue_labels | tojson }},
+    datasets: [
+      { label: 'Revenue',  data: {{ revenue_data | tojson }},
+        backgroundColor: barFill, borderRadius: 6, borderSkipped: false,
+        hoverBackgroundColor: barHover },
+      { label: 'Expenses', data: {{ expense_data | tojson }},
+        backgroundColor: expenseCol, borderRadius: 6, borderSkipped: false },
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: tooltipBg, titleColor: tooltipTxt, bodyColor: tooltipTxt,
+        borderColor: isDark ? '#334155' : '#e5e7eb', borderWidth: 1,
+        callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + rupee(ctx.raw) }
+      }
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 11 } } },
+      y: { grid: { color: gridColor },
+           ticks: { color: tickColor, font: { size: 11 }, callback: rupee } }
+    }
+  }
+});
+
+// ── Member growth ────────────────────────────────────────────────────────────
+new Chart(document.getElementById('memberChart'), {
+  type: 'line',
+  data: {
+    labels: {{ revenue_labels | tojson }},
     datasets: [{
-      label: 'Revenue (₹)',
-      data: {{ revenue_data | tojson }},
-      backgroundColor: barFill,
-      borderRadius: 8,
-      borderSkipped: false,
-      hoverBackgroundColor: barHover,
+      label: 'Members',
+      data: {{ member_data | tojson }},
+      borderColor: brandHex,
+      backgroundColor: hexA(brandHex, 0.12),
+      borderWidth: 2.5,
+      fill: true,
+      tension: 0.35,
+      pointRadius: 3,
+      pointBackgroundColor: brandHex,
+      pointBorderColor: isDark ? '#1e293b' : '#fff',
+      pointBorderWidth: 2,
     }]
   },
   options: {
@@ -332,26 +575,23 @@ new Chart(revenueCtx, {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: tooltipBg,
-        titleColor: tooltipTxt,
-        bodyColor: tooltipTxt,
-        borderColor: isDark ? '#334155' : '#e5e7eb',
-        borderWidth: 1,
-        callbacks: { label: ctx => ' ₹' + ctx.raw.toFixed(0) }
+        backgroundColor: tooltipBg, titleColor: tooltipTxt, bodyColor: tooltipTxt,
+        borderColor: isDark ? '#334155' : '#e5e7eb', borderWidth: 1,
+        callbacks: { label: ctx => ' ' + ctx.raw + ' member' + (ctx.raw === 1 ? '' : 's') }
       }
     },
     scales: {
       x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 11 } } },
-      y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { size: 11 }, callback: v => '₹' + v } }
+      y: { beginAtZero: true, grid: { color: gridColor },
+           ticks: { color: tickColor, font: { size: 11 }, precision: 0 } }
     }
   }
 });
 
-// ── Plan Donut Chart ─────────────────────────────────────────────────────────
+// ── Plan Donut ───────────────────────────────────────────────────────────────
 const planLabels = {{ plan_labels | tojson }};
 const planData   = {{ plan_data   | tojson }};
-const planCtx = document.getElementById('planChart').getContext('2d');
-new Chart(planCtx, {
+new Chart(document.getElementById('planChart'), {
   type: 'doughnut',
   data: {
     labels: planLabels,
@@ -370,17 +610,13 @@ new Chart(planCtx, {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: tooltipBg,
-        titleColor: tooltipTxt,
-        bodyColor: tooltipTxt,
-        borderColor: isDark ? '#334155' : '#e5e7eb',
-        borderWidth: 1
+        backgroundColor: tooltipBg, titleColor: tooltipTxt, bodyColor: tooltipTxt,
+        borderColor: isDark ? '#334155' : '#e5e7eb', borderWidth: 1
       }
     }
   }
 });
 
-// Legend swatches
 const legend = document.getElementById('planLegend');
 planLabels.forEach((lbl, i) => {
   const el = document.createElement('div');

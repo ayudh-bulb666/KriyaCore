@@ -10,6 +10,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import limiter
+from .helpers import validate_password
 from .models import db, User, TOTPBackupCode
 
 auth_bp = Blueprint('auth', __name__)
@@ -43,8 +44,15 @@ def _issue_backup_codes(user):
 def _complete_login(user, remember):
     user.reset_failed_logins()
     db.session.commit()
-    login_user(user, remember=remember)
+
+    # Read what we need out of the pre-login session, then throw the rest
+    # away before establishing the authenticated one. Anything an attacker
+    # managed to seed into the visitor's session — the classic session
+    # fixation move — does not survive into their logged-in session.
     next_page = session.pop('pending_2fa_next', None)
+    session.clear()
+
+    login_user(user, remember=remember)
     flash(f'Welcome back, {user.name}!', 'success')
     if user.is_platform_admin:
         return redirect(next_page or url_for('operator.index'))
@@ -163,6 +171,7 @@ def logout():
 
 
 @auth_bp.route('/account/password', methods=['GET', 'POST'])
+@limiter.limit('10 per hour', methods=['POST'])
 @login_required
 def change_password():
     if request.method == 'POST':
@@ -174,8 +183,10 @@ def change_password():
             flash('Current password is incorrect.', 'danger')
             return render_template('auth/change_password.html')
 
-        if len(new_pw) < 8:
-            flash('New password must be at least 8 characters.', 'danger')
+        pw_error = validate_password(new_pw, email=current_user.email,
+                                     name=current_user.name)
+        if pw_error:
+            flash(pw_error, 'danger')
             return render_template('auth/change_password.html')
 
         if new_pw != confirm_pw:
@@ -227,7 +238,7 @@ def setup_2fa():
     current_user.totp_secret = pyotp.random_base32()
     db.session.commit()
 
-    uri = pyotp.TOTP(current_user.totp_secret).provisioning_uri(name=current_user.email, issuer_name='GYMPro')
+    uri = pyotp.TOTP(current_user.totp_secret).provisioning_uri(name=current_user.email, issuer_name='KriyaCore')
 
     buf = io.BytesIO()
     qrcode.make(uri).save(buf, format='PNG')
@@ -267,6 +278,7 @@ def regenerate_backup_codes():
 
 
 @auth_bp.route('/account/2fa/disable', methods=['POST'])
+@limiter.limit('10 per hour', methods=['POST'])
 @login_required
 def disable_2fa():
     password = request.form.get('password', '')

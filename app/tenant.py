@@ -2,7 +2,7 @@
 Path-based multi-tenancy.
 
 Every gym-facing blueprint is mounted under '/<gym_slug>/...' so each gym
-gets its own branded URL, e.g. gympro.app/powerfit-mumbai/dashboard.
+gets its own branded URL, e.g. kriyacore.app/powerfit-mumbai/dashboard.
 
 register_gym_scoping(blueprint) wires up three hooks on that blueprint:
 

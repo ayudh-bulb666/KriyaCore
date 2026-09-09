@@ -1,0 +1,90 @@
+# Nightly database backup.
+#
+# Supabase's free tier has NO automatic backups. This app holds gym members,
+# billing history and staff salaries — losing it is not recoverable by
+# re-typing. So we take our own dump on a schedule.
+#
+# It runs on GitHub's servers, not yours, so it keeps working when your
+# laptop is closed and it survives moving hosts: the same workflow backs up
+# a Supabase database today and a VPS Postgres later, by changing one secret.
+#
+# Setup (once):
+#   GitHub repo → Settings → Secrets and variables → Actions → New secret
+#     DATABASE_URL     the Supabase connection string (session pooler, :5432)
+#     BACKUP_PASSPHRASE  any long random string — encrypts the dump at rest
+#
+# Restore:
+#   gpg --decrypt --batch --passphrase "$BACKUP_PASSPHRASE" kriyacore-*.sql.gz.gpg \
+#     | gunzip | psql "$TARGET_DATABASE_URL"
+
+name: Backup database
+
+on:
+  schedule:
+    # 20:30 UTC = 02:00 IST — after the gyms have closed, before anyone opens.
+    - cron: '30 20 * * *'
+  workflow_dispatch:        # so you can also run one on demand before a migration
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install a matching pg_dump
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt \
+            $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+
+      - name: Dump, compress and encrypt
+        env:
+          DATABASE_URL:      ${{ secrets.DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          STAMP=$(date -u +%Y-%m-%d)
+          FILE="kriyacore-${STAMP}.sql.gz.gpg"
+
+          # --no-owner / --no-acl so the dump restores onto a different host
+          # with different role names — which is the whole point of having it.
+          pg_dump "$DATABASE_URL" --no-owner --no-acl --clean --if-exists \
+            | gzip -9 \
+            | gpg --batch --yes --symmetric --cipher-algo AES256 \
+                  --passphrase "$BACKUP_PASSPHRASE" \
+                  --output "$FILE"
+
+          SIZE=$(stat -c%s "$FILE")
+          echo "wrote $FILE (${SIZE} bytes)"
+
+          # A dump that is suspiciously small usually means the connection
+          # failed and we captured an empty file — fail loudly rather than
+          # quietly storing something useless.
+          if [ "$SIZE" -lt 2000 ]; then
+            echo "::error::Backup is only ${SIZE} bytes — the dump probably failed."
+            exit 1
+          fi
+          echo "FILE=$FILE" >> "$GITHUB_ENV"
+
+      - name: Verify the archive actually opens
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          # An untested backup is a guess. Decrypt, decompress and confirm the
+          # SQL contains the tables we expect before calling this a success.
+          gpg --batch --quiet --decrypt --passphrase "$BACKUP_PASSPHRASE" "$FILE" \
+            | gunzip > /tmp/check.sql
+          for t in members member_memberships users gyms expenses staff_profiles; do
+            grep -q "CREATE TABLE public.$t" /tmp/check.sql \
+              || { echo "::error::table '$t' missing from the dump"; exit 1; }
+          done
+          echo "verified: $(grep -c 'CREATE TABLE' /tmp/check.sql) tables in the dump"
+
+      - name: Store it
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.FILE }}
+          path: ${{ env.FILE }}
+          retention-days: 30

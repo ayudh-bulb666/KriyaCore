@@ -1,4 +1,4 @@
-# ── GYMPro Subscription Plans ────────────────────────────────────────────────
+# ── KriyaCore Subscription Plans ────────────────────────────────────────────────
 # Single source of truth. Import PLANS wherever plan logic is needed.
 
 PLANS = {

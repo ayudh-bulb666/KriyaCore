@@ -1,5 +1,5 @@
-// GYMPro Service Worker — v1
-const CACHE = 'gympro-v1';
+// KriyaCore Service Worker — v1
+const CACHE = 'kriyacore-v1';
 
 // Static assets to cache on install
 const PRECACHE = [

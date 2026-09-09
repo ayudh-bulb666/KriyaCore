@@ -1,0 +1,85 @@
+# Render Blueprint for KriyaCore.
+#
+# Render hosts the app; Supabase hosts Postgres. Create the Supabase project
+# FIRST — you need its connection string before the first deploy.
+#
+# Deploy: Render dashboard → New → Blueprint → pick this repo.
+# Full walkthrough, including the Supabase side: deploy/SETUP.md §B.
+
+services:
+  - type: web
+    name: kriyacore
+    runtime: python
+    plan: starter          # $7/mo. The free plan sleeps after 15 minutes idle,
+                           # which means a 30–60s cold start every time the
+                           # front desk opens the app after a quiet spell.
+
+    # Singapore is Render's only region anywhere near India (~100–150ms).
+    # Put the Supabase project in Singapore too — see SETUP.md for why
+    # splitting the app and database across regions is much worse than
+    # having both a little further away.
+    region: singapore
+
+    buildCommand: pip install -r requirements.txt
+
+    # Runs after the build, before the new version takes traffic. Migrations
+    # belong here rather than in the start command: the start command runs on
+    # every restart and every scaled instance, so schema changes would race.
+    preDeployCommand: flask db upgrade
+
+    # One worker on purpose. Flask-Limiter keeps rate-limit counters in
+    # memory, so a second worker would get its own counters and the login
+    # limit would silently double. One worker is ample for two gyms; if that
+    # ever changes, move the limiter to Redis before adding workers.
+    startCommand: gunicorn run:app --workers 1 --threads 4 --timeout 60
+
+    healthCheckPath: /login
+
+    envVars:
+      # Python 3.9 went end-of-life on 31 Oct 2025 and blocks ~22 dependency
+      # CVE fixes (requests, urllib3 and click all require 3.10+). Pinning
+      # 3.12 here is the single cheapest security win in this file.
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+
+      # THE ONE THAT WILL BITE YOU IF IT'S MISSING.
+      # Attendance timestamps are deliberately server-local, not UTC (see the
+      # Attendance model). Render's servers run UTC, so without this a member
+      # arriving at 10:00 is logged at 04:30, and "today's arrivals" rolls
+      # over at 5:30am IST instead of midnight.
+      - key: TZ
+        value: Asia/Kolkata
+
+      - key: FLASK_ENV
+        value: production
+
+      - key: FLASK_APP
+        value: run.py
+
+      # Generated once by Render and then held steady. Keep this value when
+      # you migrate hosts — changing it signs out every user.
+      - key: SECRET_KEY
+        generateValue: true
+
+      # Set these in the Render dashboard, not here — this file is in a
+      # public repo.
+      - key: DATABASE_URL          # Supabase → Settings → Database → Connection pooling
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: WHATSAPP_PROVIDER
+        sync: false
+      - key: WHATSAPP_API_KEY
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: MAIL_SERVER
+        sync: false
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_DEFAULT_SENDER
+        sync: false

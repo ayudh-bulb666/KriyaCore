@@ -5,7 +5,7 @@ WhatsApp Business Platform doesn't allow free-form outbound messages from a
 business. Every gym-initiated message (not a reply to the customer) has to
 use a pre-approved template — a fixed wrapper with a few fill-in variables,
 submitted to Meta and approved before it can be sent. The four message
-types GYMPro's UI offers map onto three underlying templates: closure and
+types KriyaCore's UI offers map onto three underlying templates: closure and
 "other events" both use the same generic 'announcement' template with a
 free-text variable, since that's realistically how a BSP/Meta approval
 would be structured too.
@@ -91,7 +91,7 @@ def render_preview(gym, template_name, variables):
 
 
 def normalize_phone(phone):
-    """WhatsApp's Cloud API wants E.164 digits with no leading '+'. GYMPro's
+    """WhatsApp's Cloud API wants E.164 digits with no leading '+'. KriyaCore's
     seed/staff-entered numbers are bare 10-digit Indian mobiles with no
     country code — assume +91 when a number looks like that. A gym entering
     numbers with a country code already (e.g. '91987...' or '+1987...')
@@ -109,9 +109,9 @@ def _send_via_meta(phone, template_name, variables):
     WHATSAPP_API_KEY (access token) and WHATSAPP_PHONE_NUMBER_ID.
 
     The template name sent to Meta must exactly match a template you've
-    created and had approved in WhatsApp Manager — GYMPro doesn't submit
+    created and had approved in WhatsApp Manager — KriyaCore doesn't submit
     templates on your behalf. Variable order follows TEMPLATES[...]['vars'];
-    if you've customized a template's wording in GYMPro's Settings page,
+    if you've customized a template's wording in KriyaCore's Settings page,
     make sure the *approved* Meta template uses the same variables in the
     same order, or Meta will reject the mismatch.
     """

@@ -1,22 +1,52 @@
 import os
 
+import click
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 
-from flask import Flask, redirect, url_for, request, flash
+from datetime import timedelta
+
+from flask import Flask, redirect, url_for, request, flash, session
 from flask_login import LoginManager, current_user
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_wtf import CSRFProtect
 from flask_wtf.csrf import CSRFError
+from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .models import db, User, Gym, Member, MembershipPlan, MemberMembership
 from .plans import PLANS, FEATURE_ROUTES, plan_has
 
 login_manager = LoginManager()
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+def _rate_limit_key():
+    """Rate-limit per user when we know who they are, per IP otherwise.
+
+    Keying purely on IP is wrong for this app: a gym's staff all sit behind
+    one router, so three people at the front desk would share a single
+    bucket and throttle each other. Anonymous traffic — crucially the login
+    form — still keys on IP, which is exactly where per-IP limiting belongs.
+    """
+    if current_user.is_authenticated:
+        return f'user:{current_user.id}'
+    return get_remote_address()
+
+
+# A ceiling on every endpoint, not just the ones we remembered to decorate.
+# With `default_limits=[]` the password change, 2FA disable, staff password
+# reset and Face ID webhook were all completely unthrottled.
+#
+# The numbers are deliberately high. This is a backstop against scripted
+# abuse, not a usage quota — a busy front desk must never meet it, and a
+# first attempt at 60/minute throttled ordinary browsing. Endpoints that
+# actually need a tight limit set their own.
+limiter = Limiter(key_func=_rate_limit_key,
+                  default_limits=['5000 per hour', '300 per minute'],
+                  # Static assets are served by nginx in production; in dev
+                  # they'd otherwise eat the allowance a page load at a time.
+                  default_limits_exempt_when=lambda: request.endpoint == 'static')
 csrf = CSRFProtect()
+migrate = Migrate()
 
 
 def create_app():
@@ -49,23 +79,79 @@ def create_app():
     # bucket for all users, and secure-cookie / HTTPS detection breaks.
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'gympro-dev-secret-change-in-production')
+    _DEV_SECRET = 'kriyacore-dev-secret-change-in-production'
+    is_production = os.environ.get('FLASK_ENV') == 'production'
+
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', _DEV_SECRET)
+
+    # Refuse to run in production on the placeholder key. It sits in a public
+    # repo, and the session cookie is signed with it — anyone who reads the
+    # repo could forge a login as any user. Failing loudly at boot beats
+    # discovering this from an intrusion.
+    if is_production and app.config['SECRET_KEY'] == _DEV_SECRET:
+        raise RuntimeError(
+            'SECRET_KEY is still the development placeholder while FLASK_ENV=production. '
+            'Generate one and set it before starting:\n'
+            "    python3 -c \"import secrets; print(secrets.token_hex(32))\"")
 
     # ── Session cookie hardening ─────────────────────────────────────────────
-    # SECURE requires HTTPS, so it's only forced on in production (Railway
-    # terminates TLS in front of the app). Left off locally so http://
-    # dev logins keep working.
-    is_production = os.environ.get('FLASK_ENV') == 'production'
+    # SECURE requires HTTPS, so it's only forced on in production, where TLS
+    # is terminated in front of the app (nginx, or a Cloudflare tunnel).
+    # Left off locally so http:// dev logins keep working.
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['SESSION_COOKIE_SECURE']   = is_production
+    # Exposed to templates so views can hide development-only affordances —
+    # e.g. the seeded credentials printed on the login page.
+    app.config['IS_PRODUCTION'] = is_production
+
+    # ── Session lifetime ─────────────────────────────────────────────────────
+    # Sessions used to last until the browser closed, which on a gym's shared
+    # front-desk machine means "forever" — nobody closes that browser. Twelve
+    # hours covers a full shift and expires overnight.
+    #
+    # SESSION_REFRESH_EACH_REQUEST makes it a sliding window: the clock resets
+    # on activity, so this logs out idle machines, not busy ones.
+    app.config['PERMANENT_SESSION_LIFETIME']  = timedelta(hours=12)
+    app.config['SESSION_REFRESH_EACH_REQUEST'] = True
+    # "Remember me" is a deliberate, longer-lived choice by the user, but it
+    # still has to end — an indefinite cookie on a lost phone is a standing
+    # key to the gym's data.
+    app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=14)
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+    app.config['REMEMBER_COOKIE_SECURE']   = is_production
+
+    @app.before_request
+    def _enforce_session_lifetime():
+        # Flask only applies PERMANENT_SESSION_LIFETIME to sessions marked
+        # permanent. Without this the setting above is silently inert.
+        session.permanent = True
 
     # Support Railway PostgreSQL (DATABASE_URL) or fall back to SQLite locally
-    _db_url = os.environ.get('DATABASE_URL', 'sqlite:///gympro.db')
+    _db_url = os.environ.get('DATABASE_URL', 'sqlite:///kriyacore.db')
     if _db_url.startswith('postgres://'):          # Railway uses the old postgres:// scheme
         _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+    if _db_url.startswith('postgresql'):
+        # Managed Postgres (Supabase, and any pooler in front of it) closes
+        # idle connections without telling the client. SQLAlchemy will then
+        # hand a dead one to the next request, which surfaces as an
+        # intermittent 500 that is miserable to reproduce.
+        #
+        # pool_pre_ping issues a cheap SELECT 1 before handing a connection
+        # out and transparently reconnects if it's gone. pool_recycle drops
+        # anything older than five minutes so we rarely get that far.
+        #
+        # The pool is deliberately small: Supabase's free tier has a modest
+        # connection cap, and a two-gym app never needs more than a handful.
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'pool_pre_ping': True,
+            'pool_recycle': 300,
+            'pool_size': 5,
+            'max_overflow': 2,
+        }
 
     # ── Email (SMTP) ───────────────────────────────────────────────────────────
     app.config['MAIL_SERVER']         = os.environ.get('MAIL_SERVER', '')
@@ -75,10 +161,14 @@ def create_app():
     app.config['MAIL_PASSWORD']       = os.environ.get('MAIL_PASSWORD', '')
     app.config['MAIL_DEFAULT_SENDER'] = os.environ.get(
         'MAIL_DEFAULT_SENDER',
-        f"GYMPro <{os.environ.get('MAIL_USERNAME', 'noreply@gympro.com')}>"
+        f"KriyaCore <{os.environ.get('MAIL_USERNAME', 'noreply@kriyacore.com')}>"
     )
 
     db.init_app(app)
+    # render_as_batch rebuilds a table to alter it, because SQLite can't ALTER
+    # a column in place. Harmless on Postgres, and it keeps a migration
+    # written against local SQLite from being one that only runs there.
+    migrate.init_app(app, db, render_as_batch=True)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
     login_manager.login_message = 'Please log in to access this page.'
@@ -110,10 +200,11 @@ def create_app():
     from .faceid        import faceid_bp
     from .whatsapp      import whatsapp_bp
     from .privacy       import privacy_bp
+    from .expenses      import expenses_bp
     from .cron          import cron_bp
 
     # Gym-facing blueprints are mounted under '/<gym_slug>/...' so each gym
-    # gets its own branded URL (e.g. gympro.app/powerfit-mumbai/dashboard).
+    # gets its own branded URL (e.g. kriyacore.app/powerfit-mumbai/dashboard).
     # register_gym_scoping wires up the slug plumbing + tenant-URL guard —
     # see app/tenant.py for details. auth_bp and operator_bp stay unscoped.
     from .tenant import register_gym_scoping
@@ -122,7 +213,7 @@ def create_app():
     # not a paid feature, so they stay available on every tier.
     for _bp in (dashboard_bp, members_bp, billing_bp, staff_bp,
                 attendance_bp, reminders_bp, notifications_bp, whatsapp_bp,
-                privacy_bp):
+                privacy_bp, expenses_bp):
         register_gym_scoping(_bp)
 
     app.register_blueprint(auth_bp)
@@ -136,6 +227,7 @@ def create_app():
     app.register_blueprint(operator_bp)
     app.register_blueprint(whatsapp_bp)
     app.register_blueprint(privacy_bp)
+    app.register_blueprint(expenses_bp)
 
     # Called by a third-party device, not a logged-in browser — no session,
     # no CSRF token to give it. Auth is the gym-specific secret in the URL
@@ -258,11 +350,130 @@ def create_app():
         flash('Your session expired — please try that again.', 'warning')
         return redirect(request.referrer or url_for('root'))
 
-    with app.app_context():
-        db.create_all()
-        _seed_data()
+    # ── Security headers ──────────────────────────────────────────────────────
+    @app.after_request
+    def security_headers(response):
+        """Browser-side defences Flask doesn't set on its own.
 
+        Set here rather than in nginx so they hold wherever the app runs —
+        behind nginx, on Render, or on a laptop — instead of silently
+        disappearing the day the deployment target changes.
+        """
+        # Clickjacking: nothing in KriyaCore is meant to be framed.
+        response.headers.setdefault('X-Frame-Options', 'DENY')
+        # Stop the browser guessing a content type (e.g. sniffing an upload
+        # into executable script).
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        # Don't leak a gym's URLs — which contain their slug — to third parties.
+        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        # Turn off browser features the app never uses.
+        response.headers.setdefault(
+            'Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=()')
+
+        # CSP scoped to what the app actually loads.
+        #
+        # script-src is 'self' only — Tailwind, Alpine and Chart.js are served
+        # from static/vendor/ rather than a CDN, so no third party can change
+        # the JavaScript running on these pages. That is strictly stronger
+        # than subresource integrity, which only detects a swapped file.
+        #
+        # 'unsafe-inline' and 'unsafe-eval' remain and are not oversights:
+        # Tailwind's runtime build compiles classes with eval, and Alpine
+        # works through inline attributes and inline <script> blocks. They
+        # weaken CSP against injected script, so CSP is the second line here —
+        # Jinja's autoescaping is the first. Removing them needs a Tailwind
+        # build step and every inline handler moved into a file.
+        response.headers.setdefault('Content-Security-Policy', '; '.join([
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "font-src 'self' https://fonts.gstatic.com data:",
+            "img-src 'self' data:",
+            "connect-src 'self'",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+        ]))
+
+        # HSTS only over a real HTTPS connection — sending it over plain http
+        # is ignored by browsers, and setting it in local dev would pin
+        # localhost to https and break the dev server.
+        if request.is_secure:
+            response.headers.setdefault(
+                'Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+        return response
+
+    _register_cli(app)
     return app
+
+
+def _register_cli(app):
+    """CLI commands, so the two things that change a database — migrating it
+    and filling it — are deliberate acts rather than side effects of booting.
+
+    `db.create_all()` used to run here on every start. It creates missing
+    tables but never alters an existing one, so the day a model gained a
+    column, production would boot cleanly and then 500 on the first query
+    that touched it. `flask db upgrade` is now the only thing that changes
+    the schema.
+    """
+
+    def _tables_ready():
+        from sqlalchemy import inspect
+        if inspect(db.engine).has_table('users'):
+            return True
+        print('No tables yet — run "flask db upgrade" first.')
+        return False
+
+    @app.cli.command('seed')
+    def seed_command():
+        """Fill an empty database with the DEMO gym, staff and members.
+
+        For demos and local work. On a real instance use create-admin
+        instead — nobody wants ten fictional members in their live gym.
+        """
+        if not _tables_ready():
+            return
+        if User.query.first():
+            print('Already seeded; nothing to do.')
+            return
+        _seed_data()
+        print('Seeded demo data. Sign in as admin@kriyacore.com / admin123 '
+              'and change that password.')
+
+    @app.cli.command('create-admin')
+    @click.option('--email', prompt='Platform admin email')
+    @click.option('--name', default='Platform Admin', help='Display name.')
+    @click.password_option(help='At least 8 characters.')
+    def create_admin_command(email, name, password):
+        """Create a platform admin on an otherwise empty database.
+
+        This is how a live instance starts: one account that can reach the
+        operator panel and create the real gyms from there. No demo data.
+        """
+        from werkzeug.security import generate_password_hash
+        if not _tables_ready():
+            return
+
+        email = email.strip().lower()
+        pw_error = validate_password(password, email=email, name=name)
+        if pw_error:
+            print(pw_error)
+            return
+        if User.query.filter_by(email=email).first():
+            print(f'A user with {email} already exists.')
+            return
+
+        db.session.add(User(
+            name=name.strip() or 'Platform Admin',
+            email=email,
+            password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
+            role='platform_admin',
+            gym_id=None,
+        ))
+        db.session.commit()
+        print(f'Platform admin {email} created. Sign in, then add your gyms '
+              f'from the operator panel.')
 
 
 def _seed_data():
@@ -278,7 +489,7 @@ def _seed_data():
     # ── Platform Admin (no gym) ────────────────────────────────────────────────
     platform_admin = User(
         name='Platform Admin',
-        email='platform@gympro.com',
+        email='platform@kriyacore.com',
         password_hash=_hash('platform123'),
         role='platform_admin',
         gym_id=None,
@@ -300,21 +511,21 @@ def _seed_data():
     # ── Gym Users ──────────────────────────────────────────────────────────────
     admin = User(
         name='Admin User',
-        email='admin@gympro.com',
+        email='admin@kriyacore.com',
         password_hash=_hash('admin123'),
         role='super_admin',
         gym_id=gym.id,
     )
     trainer1 = User(
         name='Raj Malhotra',
-        email='raj@gympro.com',
+        email='raj@kriyacore.com',
         password_hash=_hash('staff123'),
         role='staff',
         gym_id=gym.id,
     )
     trainer2 = User(
         name='Divya Krishnan',
-        email='divya@gympro.com',
+        email='divya@kriyacore.com',
         password_hash=_hash('staff123'),
         role='staff',
         gym_id=gym.id,

@@ -1,22 +1,22 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full"
-      x-data="{ darkMode: localStorage.getItem('gympro-dark') === 'true' }"
+      x-data="{ darkMode: localStorage.getItem('kriyacore-dark') === 'true' }"
       :class="{ dark: darkMode }"
-      x-init="$watch('darkMode', v => localStorage.setItem('gympro-dark', v))">
+      x-init="$watch('darkMode', v => localStorage.setItem('kriyacore-dark', v))">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign In — GYMPro</title>
+  <title>Sign In — KriyaCore</title>
   <link rel="manifest" href="/static/manifest.json" />
   <meta name="theme-color" content="#166534" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="GYMPro" />
+  <meta name="apple-mobile-web-app-title" content="KriyaCore" />
   <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
-  <script>if (localStorage.getItem('gympro-dark') === 'true') document.documentElement.classList.add('dark');</script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script>if (localStorage.getItem('kriyacore-dark') === 'true') document.documentElement.classList.add('dark');</script>
+  <script src="{{ url_for('static', filename='vendor/tailwind-3.4.16.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='vendor/alpine-3.14.1.min.js') }}"></script>
   <script>tailwind.config = { darkMode: 'class' }</script>
   <style>[x-cloak]{display:none!important}</style>
 </head>
@@ -38,7 +38,7 @@
         <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43z"/>
       </svg>
     </div>
-    <span class="text-white font-bold text-xl tracking-tight">GYMPro</span>
+    <span class="text-white font-bold text-xl tracking-tight">KriyaCore</span>
   </div>
 
   <!-- Headline -->
@@ -92,7 +92,7 @@
   </div>
 
   <!-- Footer note -->
-  <p class="relative text-green-400 text-xs">© 2026 GYMPro. All rights reserved.</p>
+  <p class="relative text-green-400 text-xs">© 2026 KriyaCore. All rights reserved.</p>
 </div>
 
 <!-- ── Right panel — form ────────────────────────────────────────────────── -->
@@ -120,7 +120,7 @@
         <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29l-1.43-1.43z"/>
       </svg>
     </div>
-    <span class="text-gray-900 dark:text-white font-bold text-xl tracking-tight">GYMPro</span>
+    <span class="text-gray-900 dark:text-white font-bold text-xl tracking-tight">KriyaCore</span>
   </div>
 
   <!-- Form card -->
@@ -161,7 +161,7 @@
                       placeholder-gray-400 dark:placeholder-slate-500
                       focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent
                       transition-shadow"
-               placeholder="you@gympro.com" />
+               placeholder="you@kriyacore.com" />
       </div>
 
       <div>
@@ -193,14 +193,21 @@
 
     </form>
 
+    {#  Development only. This printed the seeded admin's password on the
+        login page — harmless on a laptop, but the moment the app is on a
+        public URL (a tunnel, a staging box, the real domain) it hands the
+        credentials to anyone who loads the page. Gated on the same flag
+        that turns on secure cookies, so it disappears wherever it matters. #}
+    {% if not config.get('IS_PRODUCTION') %}
     <div class="mt-8 pt-6 border-t border-gray-100 dark:border-slate-700">
       <p class="text-xs text-center text-gray-400 dark:text-slate-500">
         Default admin:
-        <code class="text-gray-600 dark:text-slate-400 font-mono">admin@gympro.com</code>
+        <code class="text-gray-600 dark:text-slate-400 font-mono">admin@kriyacore.com</code>
         &nbsp;/&nbsp;
         <code class="text-gray-600 dark:text-slate-400 font-mono">admin123</code>
       </p>
     </div>
+    {% endif %}
   </div>
 </div>
 

@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block title %}Expenses{% endblock %}
+{% block heading %}Expenses{% endblock %}
+
+{% block header_actions %}
+<a href="{{ url_for('expenses.export_csv', month=month_value) }}"
+   class="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 text-sm font-medium rounded-lg border border-gray-200 dark:border-slate-600 transition-colors">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+  </svg>
+  Export CSV
+</a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Month picker -->
+<div class="flex gap-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-1.5 mb-5 overflow-x-auto">
+  {% for m in months %}
+  <a href="{{ url_for('expenses.index', month=m.strftime('%Y-%m')) }}"
+     class="px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors
+            {% if month_value == m.strftime('%Y-%m') %}text-white shadow{% else %}text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700{% endif %}"
+     {% if month_value == m.strftime('%Y-%m') %}style="background-color:var(--brand)"{% endif %}>
+    {{ m.strftime('%b %Y') }}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+  <!-- Ledger -->
+  <div class="xl:col-span-2 space-y-4">
+
+    <!-- Add an expense. Inline rather than a separate page — recording rent
+         is a ten-second job and shouldn't cost a page load each way. -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+      <h3 class="text-base font-bold text-gray-900 dark:text-white mb-4">Record an expense</h3>
+      <form method="POST" action="{{ url_for('expenses.new') }}" class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="sm:col-span-4">
+          <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1" for="category">Category</label>
+          <select id="category" name="category" required
+                  class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus-brand">
+            {% for key, label in categories %}
+            <option value="{{ key }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="sm:col-span-3">
+          <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1" for="amount">Amount</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm">₹</span>
+            <input id="amount" name="amount" type="number" min="0.01" step="0.01" required placeholder="0"
+                   class="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+          </div>
+        </div>
+
+        <div class="sm:col-span-3">
+          <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1" for="incurred_on">Date</label>
+          <input id="incurred_on" name="incurred_on" type="date" required value="{{ today }}" max="{{ today }}"
+                 class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+        </div>
+
+        <div class="sm:col-span-2 flex items-end">
+          <button type="submit"
+                  class="w-full px-4 py-2 btn-brand text-sm font-semibold rounded-lg transition-colors shadow-sm">
+            Add
+          </button>
+        </div>
+
+        <div class="sm:col-span-12">
+          <input name="note" type="text" maxlength="255" placeholder="Note (optional) — e.g. September rent, treadmill belt replacement"
+                 class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus-brand"/>
+        </div>
+      </form>
+    </div>
+
+    <!-- Entries -->
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-700">
+        <h3 class="text-base font-bold text-gray-900 dark:text-white">{{ month_start.strftime('%B %Y') }}</h3>
+        <span class="type-p2 text-gray-500 dark:text-slate-400">
+          {{ rows|length }} entr{% if rows|length == 1 %}y{% else %}ies{% endif %}
+        </span>
+      </div>
+
+      {% if rows %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
+              <th class="text-left px-6 py-3 type-h4 text-gray-500 dark:text-slate-400">Date</th>
+              <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Category</th>
+              <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Note</th>
+              <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Amount</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
+            {% for r in rows %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
+              <td class="px-6 py-3 text-gray-500 dark:text-slate-400 whitespace-nowrap">{{ r.incurred_on.strftime('%d %b') }}</td>
+              <td class="px-4 py-3">
+                <span class="text-gray-800 dark:text-slate-200 font-medium">{{ r.category_label }}</span>
+              </td>
+              <td class="px-4 py-3 text-gray-500 dark:text-slate-400">
+                {{ r.note or '—' }}
+                {% if r.recorded_by_name %}
+                <span class="type-p3 text-gray-400 dark:text-slate-500 block">by {{ r.recorded_by_name }}</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-right font-semibold text-gray-900 dark:text-slate-100 whitespace-nowrap">
+                ₹{{ "{:,.0f}".format(r.amount) }}
+              </td>
+              <td class="px-4 py-3 text-right">
+                {#  Fixed-width slot so the delete button sits at the same
+                    x-position on every row — a control that moves between
+                    rows is a control you click by mistake. #}
+                <div class="w-[76px] ml-auto">
+                  <form method="POST" action="{{ url_for('expenses.delete', expense_id=r.id) }}"
+                        onsubmit="return confirm('Delete the ₹{{ '%.0f'|format(r.amount) }} {{ r.category_label }} entry from {{ r.incurred_on.strftime('%d %b') }}?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                            class="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg
+                                   border border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400
+                                   hover:border-red-300 dark:hover:border-red-700 hover:text-red-600 dark:hover:text-red-400
+                                   hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                      Delete
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="bg-gray-50 dark:bg-slate-700/50 border-t-2 border-gray-100 dark:border-slate-700">
+              <td colspan="3" class="px-6 py-3 type-h4 text-gray-600 dark:text-slate-300">Total</td>
+              <td class="px-4 py-3 text-right text-base font-extrabold text-gray-900 dark:text-white whitespace-nowrap">
+                ₹{{ "{:,.0f}".format(total) }}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      {% else %}
+      <div class="py-16 text-center">
+        <p class="type-p2 text-gray-500 dark:text-slate-400">No expenses recorded for {{ month_start.strftime('%B %Y') }}.</p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Add rent, salaries and bills above to see your real margin on the dashboard.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Breakdown -->
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 self-start">
+    <h3 class="text-base font-bold text-gray-900 dark:text-white mb-1">Where it went</h3>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mb-5">{{ month_start.strftime('%B %Y') }}</p>
+
+    {% if breakdown %}
+    <p class="text-3xl font-extrabold text-gray-900 dark:text-white mb-5">₹{{ "{:,.0f}".format(total) }}</p>
+    <div class="space-y-3.5">
+      {% for b in breakdown %}
+      <div>
+        <div class="flex items-center justify-between text-sm mb-1">
+          <span class="text-gray-700 dark:text-slate-300">{{ b.label }}</span>
+          <span class="font-semibold text-gray-900 dark:text-slate-100">₹{{ "{:,.0f}".format(b.amount) }}</span>
+        </div>
+        <div class="h-1.5 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
+          <div class="h-full rounded-full" style="width:{{ b.share }}%; background-color:var(--brand)"></div>
+        </div>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">{{ "%.0f"|format(b.share) }}%</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="type-p3 text-gray-400 dark:text-slate-500 py-8 text-center">Nothing recorded this month.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

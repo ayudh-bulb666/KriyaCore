@@ -1,0 +1,623 @@
+{% extends 'base.html' %}
+{% block title %}{{ user.name }}{% endblock %}
+{% block heading %}Staff Member{% endblock %}
+
+{% block header_actions %}
+<div class="w-[104px]">
+  {% if open_shift %}
+  <form method="POST" action="{{ url_for('staff.shift_end', user_id=user.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit"
+            class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg
+                   border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                   bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+      Clock out
+    </button>
+  </form>
+  {% else %}
+  <form method="POST" action="{{ url_for('staff.shift_start', user_id=user.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit"
+            class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 btn-brand text-sm font-medium rounded-lg shadow-sm transition-colors">
+      Clock in
+    </button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── Identity ─────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 mb-4">
+  <div class="flex items-start gap-4">
+    <div class="w-14 h-14 rounded-full avatar-brand flex items-center justify-center text-lg font-bold shrink-0">
+      {{ user.name[:2]|upper }}
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2.5 flex-wrap">
+        <h2 class="type-h2 text-gray-900 dark:text-white">{{ user.name }}</h2>
+        {% if open_shift %}
+        <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium
+          {% if open_shift.needs_attention %}bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-400
+          {% else %}bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400{% endif %}">
+          {% if open_shift.needs_attention %}Shift left open{% else %}On shift{% endif %}
+        </span>
+        {% endif %}
+        {% if user.is_locked %}
+        <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400">
+          Locked out
+        </span>
+        {% endif %}
+      </div>
+      <p class="type-p2 text-gray-500 dark:text-slate-400 mt-0.5">
+        {{ profile.designation or 'No designation set' }} · {{ profile.employment_label }}
+        {% if profile.joined_on %} · since {{ profile.joined_on.strftime('%b %Y') }}{% endif %}
+      </p>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
+        <div>
+          <p class="type-p3 text-gray-500 dark:text-slate-400">Email</p>
+          <p class="text-gray-700 dark:text-slate-300 truncate">{{ user.email }}</p>
+        </div>
+        <div>
+          <p class="type-p3 text-gray-500 dark:text-slate-400">Phone</p>
+          <p class="text-gray-700 dark:text-slate-300">{{ profile.phone or '—' }}</p>
+        </div>
+        <div>
+          <p class="type-p3 text-gray-500 dark:text-slate-400">Salary</p>
+          <p class="text-gray-700 dark:text-slate-300">
+            {% if profile.salary_amount %}₹{{ "{:,.0f}".format(profile.salary_amount) }}/mo{% else %}—{% endif %}
+          </p>
+        </div>
+        <div>
+          <p class="type-p3 text-gray-500 dark:text-slate-400">PT pay</p>
+          <p class="text-gray-700 dark:text-slate-300">{{ profile.pt_pay_label }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Month picker ─────────────────────────────────────────────────────── -->
+<div class="flex gap-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-1.5 mb-4 overflow-x-auto">
+  {% for m in months %}
+  <a href="{{ url_for('staff.detail', user_id=user.id, month=m.strftime('%Y-%m')) }}"
+     class="px-3.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors
+            {% if month_value == m.strftime('%Y-%m') %}text-white shadow{% else %}text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-700{% endif %}"
+     {% if month_value == m.strftime('%Y-%m') %}style="background-color:var(--brand)"{% endif %}>
+    {{ m.strftime('%b %Y') }}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- ── This month's pay ─────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 mb-4">
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h3 class="text-base font-bold text-gray-900 dark:text-white">{{ month_start.strftime('%B %Y') }}</h3>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+        {% if payment %}Paid on {{ payment.paid_on.strftime('%d %b %Y') }}{% if payment.recorded_by_name %} by {{ payment.recorded_by_name }}{% endif %}
+        {% else %}Not paid yet{% endif %}
+      </p>
+    </div>
+    {% if payment %}
+    <span class="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400">
+      Paid ₹{{ "{:,.0f}".format(payment.total) }}
+    </span>
+    {% endif %}
+  </div>
+
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+    <div class="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-700/40">
+      <p class="type-p3 text-gray-500 dark:text-slate-400">Hours worked</p>
+      <p class="text-2xl font-extrabold text-gray-900 dark:text-white mt-0.5">{{ "%.1f"|format(hours) }}h</p>
+    </div>
+    <div class="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-700/40">
+      <p class="type-p3 text-gray-500 dark:text-slate-400">PT sessions</p>
+      <p class="text-2xl font-extrabold text-gray-900 dark:text-white mt-0.5">{{ sessions|length }}</p>
+    </div>
+    <div class="p-3.5 rounded-xl bg-gray-50 dark:bg-slate-700/40">
+      <p class="type-p3 text-gray-500 dark:text-slate-400">PT earned</p>
+      <p class="text-2xl font-extrabold text-gray-900 dark:text-white mt-0.5">₹{{ "{:,.0f}".format(pt_payout) }}</p>
+    </div>
+    <div class="p-3.5 rounded-xl tile-brand">
+      <p class="type-p3 text-gray-600 dark:text-slate-300">Base + PT</p>
+      <p class="text-2xl font-extrabold text-gray-900 dark:text-white mt-0.5">₹{{ "{:,.0f}".format(due) }}</p>
+    </div>
+  </div>
+
+  {% if payment %}
+  <div class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 flex items-center justify-between gap-4 flex-wrap">
+    <p class="type-p3 text-gray-500 dark:text-slate-400">
+      Base ₹{{ "{:,.0f}".format(payment.base_amount) }}
+      · PT ₹{{ "{:,.0f}".format(payment.pt_amount) }}
+      {% if payment.adjustment %}· Adjustment {% if payment.adjustment < 0 %}−{% endif %}₹{{ "{:,.0f}".format(payment.adjustment|abs) }}{% endif %}
+      {% if payment.note %} · {{ payment.note }}{% endif %}
+    </p>
+    <form method="POST" action="{{ url_for('staff.salary_delete', payment_id=payment.id) }}"
+          onsubmit="return confirm('Remove the ₹{{ '%.0f'|format(payment.total) }} payment recorded for {{ month_start.strftime('%B %Y') }}?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="type-p3 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+        Undo this payment
+      </button>
+    </form>
+  </div>
+  {% else %}
+  {#  Pre-filled from what's actually owed, but every figure stays editable —
+      a bonus or a deduction is the normal case, not the exception. #}
+  <form method="POST" action="{{ url_for('staff.salary_pay', user_id=user.id) }}"
+        class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-12 gap-3"
+        onsubmit="return confirm('Record this month\'s salary as paid to {{ user.name }}?')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="period_month" value="{{ month_value }}">
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Base</label>
+      <input name="base_amount" type="number" min="0" step="0.01" value="{{ "%.2f"|format(base_salary) }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">PT earnings</label>
+      <input name="pt_amount" type="number" min="0" step="0.01" value="{{ "%.2f"|format(pt_payout) }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Bonus / deduction</label>
+      <input name="adjustment" type="number" step="0.01" placeholder="0"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Note</label>
+      <input name="note" type="text" maxlength="255" placeholder="Optional"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-2 flex items-end">
+      <button type="submit" class="w-full px-4 py-2 btn-brand text-sm font-semibold rounded-lg shadow-sm transition-colors">
+        Mark paid
+      </button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+
+  <!-- ── Shifts ─────────────────────────────────────────────────────────── -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+      <div>
+        <h3 class="text-base font-bold text-gray-900 dark:text-white">Shifts</h3>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">{{ month_start.strftime('%B %Y') }} · {{ "%.1f"|format(hours) }}h total</p>
+      </div>
+    </div>
+
+    {#  No inner scrollbar. A month of shifts in a 384px box traps the mouse
+        wheel and hides half the records behind a scroller nobody notices —
+        on a page someone is reading to check payroll, a longer page is the
+        lesser evil. #}
+    {% if shifts %}
+    <div class="divide-y divide-gray-50 dark:divide-slate-700">
+      {% for s in shifts %}
+      <div class="px-5 py-3 {% if s.is_open %}bg-amber-50/50 dark:bg-amber-900/10{% endif %}">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-gray-800 dark:text-slate-200">
+              {{ s.started_at.strftime('%a %d %b') }}
+            </p>
+            <p class="type-p3 text-gray-500 dark:text-slate-400">
+              {{ s.started_at.strftime('%I:%M %p') }} →
+              {% if s.ended_at %}{{ s.ended_at.strftime('%I:%M %p') }}{% else %}<span class="text-amber-600 dark:text-amber-400">still open</span>{% endif %}
+            </p>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            {% if s.ended_at %}
+            <span class="text-sm font-semibold text-gray-900 dark:text-slate-100">{{ "%.2f"|format(s.hours) }}h</span>
+            {% endif %}
+            <form method="POST" action="{{ url_for('staff.shift_delete', shift_id=s.id) }}"
+                  onsubmit="return confirm('Delete the shift starting {{ s.started_at.strftime('%d %b at %I:%M %p') }}?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="type-p3 text-gray-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 transition-colors px-1">✕</button>
+            </form>
+          </div>
+        </div>
+
+        {#  A forgotten clock-out is corrected by hand, never auto-closed at a
+            guessed time — a guessed time becomes wrong payroll. #}
+        {% if s.is_open %}
+        <form method="POST" action="{{ url_for('staff.shift_fix', shift_id=s.id) }}"
+              class="flex items-end gap-2 mt-2.5">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="flex-1 min-w-0">
+            <label class="block text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">
+              {% if s.needs_attention %}Left open — set the real end time{% else %}End this shift at{% endif %}
+            </label>
+            <input name="ended_at" type="datetime-local" required
+                   max="{{ now.strftime('%Y-%m-%dT%H:%M') }}"
+                   class="w-full px-2.5 py-1.5 border border-amber-200 dark:border-amber-800/60 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+          </div>
+          <button type="submit" class="px-3 py-1.5 btn-brand text-xs font-semibold rounded-lg shrink-0">Save</button>
+        </form>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="px-5 py-12 text-center">
+      <p class="type-p2 text-gray-500 dark:text-slate-400">No shifts in {{ month_start.strftime('%B') }}.</p>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Use Clock in above to start one.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── PT sessions ────────────────────────────────────────────────────── -->
+  <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+      <div>
+        <h3 class="text-base font-bold text-gray-900 dark:text-white">PT sessions delivered</h3>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+          {{ month_start.strftime('%B %Y') }} · ₹{{ "{:,.0f}".format(pt_payout) }} earned
+        </p>
+      </div>
+    </div>
+
+    {% if sessions %}
+    <div class="divide-y divide-gray-50 dark:divide-slate-700">
+      {% for s in sessions %}
+      <div class="flex items-center justify-between gap-3 px-5 py-3">
+        <div class="min-w-0">
+          <a href="{{ url_for('members.detail', member_id=s.member_id) }}"
+             class="text-sm font-medium text-gray-800 dark:text-slate-200 hover-brand transition-colors">
+            {{ s.member.full_name }}
+          </a>
+          <p class="type-p3 text-gray-500 dark:text-slate-400">
+            {{ s.held_at.strftime('%a %d %b, %I:%M %p') }}{% if s.note %} · {{ s.note }}{% endif %}
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          {% if s.trainer_payout %}
+          <span class="text-sm font-semibold text-gray-900 dark:text-slate-100">₹{{ "{:,.0f}".format(s.trainer_payout) }}</span>
+          {% endif %}
+          <form method="POST" action="{{ url_for('staff.pt_session_delete', session_id=s.id) }}"
+                onsubmit="return confirm('Remove this session with {{ s.member.full_name }}? It goes back onto their package.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="type-p3 text-gray-300 dark:text-slate-600 hover:text-red-600 dark:hover:text-red-400 transition-colors px-1">✕</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="px-5 py-12 text-center">
+      <p class="type-p2 text-gray-500 dark:text-slate-400">No sessions logged in {{ month_start.strftime('%B') }}.</p>
+      <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Log them against a package below.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── PT packages ──────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 mb-4">
+  <h3 class="text-base font-bold text-gray-900 dark:text-white mb-1">Personal training packages</h3>
+  <p class="type-p3 text-gray-400 dark:text-slate-500 mb-4">
+    {% if profile.pt_pay_mode == 'none' %}
+      {{ user.name }} is on salary only — sessions are tracked here but earn no separate payout.
+    {% else %}
+      {{ user.name }} earns {{ profile.pt_pay_label }}.
+    {% endif %}
+  </p>
+
+  <form method="POST" action="{{ url_for('staff.pt_package_new', user_id=user.id) }}"
+        class="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-5 pb-5 border-b border-gray-100 dark:border-slate-700">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="sm:col-span-4">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Member</label>
+      <select name="member_id" required
+              class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus-brand">
+        <option value="">— Select —</option>
+        {% for m in members %}
+        <option value="{{ m.id }}">{{ m.full_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Sessions</label>
+      <input name="sessions_total" type="number" min="1" step="1" required value="10"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Price</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm">₹</span>
+        <input name="price" type="number" min="0" step="0.01" required placeholder="0"
+               class="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+      </div>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Sold on</label>
+      <input name="sold_on" type="date" value="{{ today }}" max="{{ today }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-2 flex items-end">
+      <button type="submit" class="w-full px-4 py-2 btn-brand text-sm font-semibold rounded-lg shadow-sm transition-colors">
+        Sell package
+      </button>
+    </div>
+    <div class="sm:col-span-12 flex items-center gap-2">
+      <input id="pt_paid" type="checkbox" name="payment_status" value="paid" style="accent-color: var(--brand)"/>
+      <label for="pt_paid" class="type-p2 text-gray-600 dark:text-slate-300">Member has already paid for this package</label>
+    </div>
+  </form>
+
+  {% if packages %}
+  <div class="space-y-3">
+    {% for p in packages %}
+    {% set state, message = p.state %}
+    <div class="border rounded-xl p-4
+                {% if state == 'active' %}border-gray-100 dark:border-slate-700
+                {% elif state == 'unpaid' %}border-orange-200 dark:border-orange-800/40 bg-orange-50/40 dark:bg-orange-900/10
+                {% elif state == 'expired' %}border-red-200 dark:border-red-800/40 bg-red-50/40 dark:bg-red-900/10
+                {% else %}border-gray-100 dark:border-slate-700 bg-gray-50/60 dark:bg-slate-700/20{% endif %}">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div class="min-w-0">
+          <a href="{{ url_for('members.detail', member_id=p.member_id) }}"
+             class="text-sm font-semibold text-gray-900 dark:text-slate-100 hover-brand transition-colors">
+            {{ p.member.full_name }}
+          </a>
+          <p class="type-p3 mt-0.5
+            {% if state == 'active' %}text-gray-500 dark:text-slate-400
+            {% elif state == 'complete' %}text-gray-400 dark:text-slate-500
+            {% else %}text-orange-700 dark:text-orange-400 font-medium{% endif %}">
+            {{ message }}
+          </p>
+          <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">
+            ₹{{ "{:,.0f}".format(p.price) }} for {{ p.sessions_total }}
+            (₹{{ "{:,.0f}".format(p.per_session_price) }}/session) ·
+            sold {{ p.sold_on.strftime('%d %b %Y') }}
+            {% if p.expires_on %} · expires {{ p.expires_on.strftime('%d %b %Y') }}{% endif %}
+          </p>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          {% if p.payment_status != 'paid' %}
+          <form method="POST" action="{{ url_for('staff.pt_package_pay', package_id=p.id) }}"
+                onsubmit="return confirm('Record payment of ₹{{ '%.0f'|format(p.price) }} from {{ p.member.full_name }} for this package?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 btn-brand text-xs font-semibold rounded-lg shadow-sm whitespace-nowrap">
+              Mark paid
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="mt-3">
+        <div class="h-1.5 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
+          <div class="h-full rounded-full"
+               style="width:{{ (p.sessions_used / p.sessions_total * 100)|round(0, 'floor') }}%; background-color:var(--brand)"></div>
+        </div>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+          {{ p.sessions_used }} of {{ p.sessions_total }} delivered
+        </p>
+      </div>
+
+      {% if p.sessions_left > 0 %}
+      <form method="POST" action="{{ url_for('staff.pt_session_log', package_id=p.id) }}"
+            class="flex flex-wrap items-end gap-2 mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex-1 min-w-[180px]">
+          <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Session held at</label>
+          <input name="held_at" type="datetime-local" value="{{ now.strftime('%Y-%m-%dT%H:%M') }}"
+                 max="{{ now.strftime('%Y-%m-%dT%H:%M') }}"
+                 class="w-full px-2.5 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+        </div>
+        <div class="flex-1 min-w-[160px]">
+          <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Note</label>
+          <input name="note" type="text" maxlength="255" placeholder="Optional"
+                 class="w-full px-2.5 py-1.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+        </div>
+        <button type="submit"
+                class="px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap
+                       border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                       bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+          Log session
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="type-p2 text-gray-500 dark:text-slate-400 py-6 text-center">No PT packages sold yet.</p>
+  {% endif %}
+</div>
+
+<!-- ── Employment details ───────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 mb-4"
+     x-data="{ ptMode: '{{ profile.pt_pay_mode or 'none' }}' }">
+  <h3 class="text-base font-bold text-gray-900 dark:text-white mb-4">Employment details</h3>
+
+  <form method="POST" action="{{ url_for('staff.save_profile', user_id=user.id) }}"
+        class="grid grid-cols-1 sm:grid-cols-12 gap-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="sm:col-span-4">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Name</label>
+      <input name="name" type="text" required value="{{ user.name }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-4">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Designation</label>
+      <input name="designation" type="text" value="{{ profile.designation or '' }}" placeholder="Head Trainer, Front Desk…"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-4">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Employment type</label>
+      <select name="employment_type"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus-brand">
+        {% for key, label in employment_types %}
+        <option value="{{ key }}" {% if profile.employment_type == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Phone</label>
+      <input name="phone" type="text" value="{{ profile.phone or '' }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Date of birth</label>
+      <input name="date_of_birth" type="date" value="{{ profile.date_of_birth.isoformat() if profile.date_of_birth else '' }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Joined on</label>
+      <input name="joined_on" type="date" value="{{ profile.joined_on.isoformat() if profile.joined_on else '' }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Salary (monthly)</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm">₹</span>
+        <input name="salary_amount" type="number" min="0" step="0.01"
+               value="{{ "%.2f"|format(profile.salary_amount) if profile.salary_amount else '' }}"
+               class="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+      </div>
+    </div>
+
+    <div class="sm:col-span-6">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Address</label>
+      <input name="address" type="text" value="{{ profile.address or '' }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Emergency contact</label>
+      <input name="emergency_contact_name" type="text" value="{{ profile.emergency_contact_name or '' }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-3">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Emergency phone</label>
+      <input name="emergency_contact_phone" type="text" value="{{ profile.emergency_contact_phone or '' }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+
+    <!-- PT pay — the rate fields only appear for the mode they belong to -->
+    <div class="sm:col-span-6">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">How PT is paid</label>
+      <select name="pt_pay_mode" x-model="ptMode"
+              class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus:outline-none focus-brand">
+        {% for key, label in pt_pay_modes %}
+        <option value="{{ key }}" {% if profile.pt_pay_mode == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="sm:col-span-3" x-show="ptMode === 'commission'" x-cloak>
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Commission %</label>
+      <input name="pt_commission_pct" type="number" min="0" max="100" step="0.5" placeholder="40"
+             value="{{ profile.pt_commission_pct|round(2)|int if profile.pt_commission_pct else '' }}"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="sm:col-span-3" x-show="ptMode === 'per_session'" x-cloak>
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Rate per session</label>
+      <div class="relative">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm">₹</span>
+        <input name="pt_session_rate" type="number" min="0" step="0.01" placeholder="300"
+               value="{{ "%.0f"|format(profile.pt_session_rate) if profile.pt_session_rate else '' }}"
+               class="w-full pl-7 pr-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+      </div>
+    </div>
+
+    <div class="sm:col-span-12">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Notes</label>
+      <textarea name="notes" rows="2"
+                class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand">{{ profile.notes or '' }}</textarea>
+    </div>
+
+    <div class="sm:col-span-12">
+      <button type="submit" class="px-5 py-2 btn-brand text-sm font-semibold rounded-lg shadow-sm transition-colors">
+        Save details
+      </button>
+      {% if profile.pt_pay_mode != 'none' %}
+      <span class="type-p3 text-gray-400 dark:text-slate-500 ml-3">
+        Changing the rate affects future sessions only — past payouts stay as they were earned.
+      </span>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- ── Credentials ──────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 mb-4">
+  <h3 class="text-base font-bold text-gray-900 dark:text-white mb-1">Login</h3>
+  <p class="type-p3 text-gray-400 dark:text-slate-500 mb-4">
+    {{ user.email }}
+    {% if user.totp_enabled %} · two-factor on{% endif %}
+    {% if user.is_locked %} · <span class="text-red-600 dark:text-red-400 font-medium">locked until {{ user.locked_until.strftime('%d %b, %I:%M %p') }}</span>{% endif %}
+  </p>
+
+  <form method="POST" action="{{ url_for('staff.reset_password', user_id=user.id) }}"
+        class="flex flex-wrap items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">New password</label>
+      <input name="new_password" type="password" required minlength="10" placeholder="At least 8 characters"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">Confirm</label>
+      <input name="confirm_password" type="password" required minlength="10"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <button type="submit"
+            class="px-4 py-2 text-sm font-semibold rounded-lg whitespace-nowrap
+                   border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                   bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+      Reset password
+    </button>
+  </form>
+  {% if user.is_locked %}
+  <p class="type-p3 text-gray-400 dark:text-slate-500 mt-2">Resetting the password also clears the lockout.</p>
+  {% endif %}
+</div>
+
+<!-- ── Danger zone ──────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-red-200 dark:border-red-900/40 p-5"
+     x-data="{ open: false, typed: '' }">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <h3 class="text-base font-bold text-red-700 dark:text-red-400">Remove {{ user.name }}</h3>
+      <p class="type-p3 text-gray-500 dark:text-slate-400 mt-0.5">
+        Deletes their login, shifts, PT records and salary history. Members they train are unassigned, not deleted.
+      </p>
+    </div>
+    <button type="button" @click="open = !open"
+            class="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-200 dark:border-red-800
+                   text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+      <span x-text="open ? 'Cancel' : 'Remove'"></span>
+    </button>
+  </div>
+
+  {#  Typing the name out is the guard — enforced on the server too, since a
+      client-side check is a convenience and never a control. #}
+  <form x-show="open" x-cloak method="POST"
+        action="{{ url_for('staff.delete', user_id=user.id) }}"
+        class="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 flex flex-wrap items-end gap-3">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="flex-1 min-w-[220px]">
+      <label class="block text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">
+        Type <span class="font-semibold text-gray-700 dark:text-slate-200">{{ user.name }}</span> to confirm
+      </label>
+      <input name="confirm_name" type="text" x-model="typed" autocomplete="off"
+             class="w-full px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+    </div>
+    <button type="submit"
+            :disabled="typed.trim().toLowerCase() !== {{ user.name|lower|tojson }}"
+            class="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-red-600 hover:bg-red-700
+                   disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+      Remove permanently
+    </button>
+  </form>
+</div>
+
+{% endblock %}

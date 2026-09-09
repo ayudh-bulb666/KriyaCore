@@ -1,7 +1,7 @@
 """
 Face ID access-control integration.
 
-GYMPro never captures, stores, or matches face data itself. A third-party
+KriyaCore never captures, stores, or matches face data itself. A third-party
 access-control terminal (installed at the gym's entrance) does the actual
 face capture and matching, then pushes a scan event to the webhook below.
 This blueprint's only job is: verify the event came from that gym's real
@@ -31,7 +31,7 @@ Every 200 response carries the member's membership standing:
     }
 
 A terminal that can read the response should act on `access`; one that can't
-still leaves staff a flagged arrival in the app. GYMPro reports the standing
+still leaves staff a flagged arrival in the app. KriyaCore reports the standing
 either way — whether a lapsed member is actually refused is the gym's call
 via Gym.face_id_deny_expired, which defaults to off.
 
@@ -41,30 +41,105 @@ URL but can't easily send custom headers — a path-embedded secret is the
 most universally compatible option. Exempted from CSRF (see __init__.py)
 since this is called by a device, not a logged-in browser session.
 """
+import hashlib
 import hmac
+import time
 from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify
 
+from . import limiter
 from .models import db, Gym, Member, Attendance, Notification, VISIT_COOLDOWN_MINUTES
 
 faceid_bp = Blueprint('faceid', __name__, url_prefix='/webhook/faceid')
 
 
+# How far the bridge's clock may drift from ours before a request is
+# refused. Narrow enough that a captured request is useless within minutes,
+# wide enough to survive an unsynced Raspberry Pi.
+SIGNATURE_WINDOW_SECONDS = 120
+
+
+def _verify_signature(gym, raw_body):
+    """Check the HMAC the bridge signed this request with.
+
+    Returns an error string, or None if the signature is good.
+
+    The timestamp is part of the signed material, not just a header — signing
+    the body alone would let anyone who captured one request replay it
+    forever. Rejecting outside a two-minute window bounds that to a window
+    an attacker has to hit live.
+    """
+    ts_header  = request.headers.get('X-KriyaCore-Timestamp', '')
+    sig_header = request.headers.get('X-KriyaCore-Signature', '')
+    if not ts_header or not sig_header:
+        return 'missing signature headers'
+
+    try:
+        drift = abs(time.time() - int(ts_header))
+    except (TypeError, ValueError):
+        return 'malformed timestamp'
+    if drift > SIGNATURE_WINDOW_SECONDS:
+        return 'timestamp outside the accepted window'
+
+    expected = hmac.new(gym.face_id_webhook_secret.encode(),
+                        f'{ts_header}.{raw_body}'.encode(),
+                        hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig_header):
+        return 'signature mismatch'
+    return None
+
+
+@faceid_bp.route('/<int:gym_id>', methods=['POST'])
 @faceid_bp.route('/<int:gym_id>/<secret>', methods=['POST'])
-def scan_event(gym_id, secret):
+# A door reader scans a handful of times a minute; anything far above
+# that is someone probing the endpoint, not a gym opening.
+@limiter.limit('120 per minute')
+def scan_event(gym_id, secret=None):
+    """Accept a scan from this gym's bridge.
+
+    Two ways in, on purpose:
+
+      * **HMAC headers** (no secret in the URL) — what the bridge uses. The
+        secret never travels, so it can't leak from a proxy log, a browser
+        history or a screenshot of the config.
+      * **secret in the path** — kept for a terminal wired straight to this
+        endpoint with no bridge in front. Weaker: the credential is in the
+        URL and there is no replay protection. Only use it on a device that
+        cannot send headers.
+    """
     gym = Gym.query.get(gym_id)
 
     if not gym or not gym.face_id_enabled or not gym.face_id_webhook_secret:
         return jsonify({'ok': False, 'error': 'face_id not enabled for this gym'}), 403
 
-    if not hmac.compare_digest(secret, gym.face_id_webhook_secret):
+    if secret is None:
+        error = _verify_signature(gym, request.get_data(as_text=True))
+        if error:
+            return jsonify({'ok': False, 'error': error}), 403
+    elif not hmac.compare_digest(secret, gym.face_id_webhook_secret):
         return jsonify({'ok': False, 'error': 'invalid webhook secret'}), 403
 
     payload = request.get_json(silent=True) or {}
-    external_id = str(payload.get('external_id', '')).strip()
+
+    # The bridge nests the scan under 'record' (the device's own shape) and
+    # names the person by the terminal's enrollid. A device posting here
+    # directly uses the flat 'external_id' form. Accept both.
+    record = payload.get('record') or {}
+    external_id = str(
+        payload.get('external_id')
+        or record.get('enrollid')
+        or ''
+    ).strip()
     if not external_id:
         return jsonify({'ok': False, 'error': 'external_id is required'}), 400
+
+    # Belt and braces: the bridge already strips the device's base64 face
+    # photo, but if one ever reaches here it must not be persisted or echoed.
+    # KriyaCore is not a holder of biometric data — see the module docstring.
+    for blob in ('image', 'photo', 'template'):
+        payload.pop(blob, None)
+        record.pop(blob, None)
 
     member = Member.query.filter_by(gym_id=gym.id, face_id_external_id=external_id).first()
     if not member:
@@ -74,7 +149,7 @@ def scan_event(gym_id, secret):
     # model). A device that sends an offset-aware timestamp gets converted;
     # a naive one is taken at face value, since the reader sits in the gym
     # and is almost certainly on the same clock as the server.
-    ts_raw = payload.get('timestamp')
+    ts_raw = payload.get('timestamp') or record.get('time')
     try:
         event_time = datetime.fromisoformat(ts_raw) if ts_raw else datetime.now()
         if event_time.tzinfo is not None:

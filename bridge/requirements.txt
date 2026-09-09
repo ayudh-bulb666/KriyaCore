@@ -1,0 +1,5 @@
+# Dependencies for the gym-side bridge only — deliberately separate from the
+# app's requirements.txt. This runs on a Raspberry Pi at the gym, not on the
+# server, and should stay as small as possible.
+websockets==13.1
+requests==2.32.5

@@ -6,9 +6,36 @@ from werkzeug.security import generate_password_hash
 from datetime import date
 from sqlalchemy import func
 
+from .helpers import validate_password
 from .models import db, Gym, User, Member, MemberMembership, MembershipPlan, AuditLog, Notification
 from .plans import PLANS
 from .tenant import RESERVED_SLUGS
+
+# The logo is base64'd into every page's HTML, so it costs bandwidth on every
+# request. 512 KB is generous for a gym logo and stops a 10 MB PNG making the
+# whole app feel slow.
+MAX_LOGO_BYTES = 512 * 1024
+
+
+def _sniff_image(data: bytes):
+    """Return a MIME type based on the file's own magic bytes, or None.
+
+    Deliberately does not consult the upload's Content-Type header: that is
+    supplied by the client and can say 'image/png' about anything at all.
+    Checking the bytes is what makes the allowlist mean something.
+
+    SVG is intentionally absent — it is XML that can contain <script>, and a
+    logo has no need to be a scriptable document.
+    """
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return 'image/png'
+    if data[:3] == b'\xff\xd8\xff':
+        return 'image/jpeg'
+    if data[:6] in (b'GIF87a', b'GIF89a'):
+        return 'image/gif'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return 'image/webp'
+    return None
 
 
 def log_action(action: str, gym=None, detail: str = None):
@@ -112,7 +139,7 @@ def sentry_test():
     dashboard after setting SENTRY_DSN. Left unguarded by try/except on
     purpose — Sentry's Flask integration only captures *unhandled*
     exceptions."""
-    raise RuntimeError('GYMPro Sentry test — if you see this in Sentry, monitoring is working.')
+    raise RuntimeError('KriyaCore Sentry test — if you see this in Sentry, monitoring is working.')
 
 
 @operator_bp.route('/gyms/new', methods=['GET', 'POST'])
@@ -134,7 +161,14 @@ def new_gym():
         if not slug:          errors.append('Slug is required.')
         if not admin_name:    errors.append('Admin name is required.')
         if not admin_email:   errors.append('Admin email is required.')
-        if not admin_pass:    errors.append('Admin password is required.')
+        if not admin_pass:
+            errors.append('Admin password is required.')
+        else:
+            # This account owns an entire gym's member and billing data —
+            # it had no strength check at all before.
+            pw_error = validate_password(admin_pass, email=admin_email, name=admin_name)
+            if pw_error:
+                errors.append(pw_error)
         if slug in RESERVED_SLUGS:
             errors.append(f'"{slug}" is a reserved word and can\'t be used as a gym URL.')
         if Gym.query.filter_by(slug=slug).first():
@@ -219,13 +253,23 @@ def edit_gym(gym_id):
 
         logo = request.files.get('logo')
         if logo and logo.filename:
-            allowed = {'image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'}
-            if logo.content_type not in allowed:
-                flash('Logo must be a PNG, JPG, SVG, or WebP image.', 'danger')
+            data = logo.read(MAX_LOGO_BYTES + 1)
+            if len(data) > MAX_LOGO_BYTES:
+                flash(f'Logo must be under {MAX_LOGO_BYTES // 1024} KB. '
+                      f'It is embedded in every page, so keep it small.', 'danger')
                 return render_template('operator/edit_gym.html', gym=gym)
-            data    = logo.read()
-            b64     = base64.b64encode(data).decode('utf-8')
-            gym.logo_data = f'data:{logo.content_type};base64,{b64}'
+
+            # Sniff the actual bytes rather than trusting logo.content_type —
+            # that header is set by the client and can claim anything. SVG is
+            # deliberately not accepted: it is a document format that can
+            # carry <script>, and there is no good reason for a logo to be one.
+            mime = _sniff_image(data)
+            if mime is None:
+                flash('Logo must be a PNG, JPEG, GIF or WebP image.', 'danger')
+                return render_template('operator/edit_gym.html', gym=gym)
+
+            b64 = base64.b64encode(data).decode('utf-8')
+            gym.logo_data = f'data:{mime};base64,{b64}'
 
         if request.form.get('remove_logo'):
             gym.logo_data = None
@@ -325,8 +369,9 @@ def reset_password(gym_id):
         flash('Passwords do not match.', 'danger')
         return redirect(url_for('operator.gym_detail', gym_id=gym_id))
 
-    if len(new_password) < 8:
-        flash('Password must be at least 8 characters.', 'danger')
+    pw_error = validate_password(new_password)
+    if pw_error:
+        flash(pw_error, 'danger')
         return redirect(url_for('operator.gym_detail', gym_id=gym_id))
 
     # Security: verify user belongs to this gym

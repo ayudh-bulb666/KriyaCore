@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
+from sqlalchemy import func
 from datetime import datetime, date
 
 db = SQLAlchemy()
@@ -28,7 +29,7 @@ class Gym(db.Model):
 
     # ── Face ID access control ──────────────────────────────────────────────
     # Per-gym opt-in, independent of plan tier — some gyms have the hardware
-    # installed, most won't for a long while. GYMPro never stores biometric
+    # installed, most won't for a long while. KriyaCore never stores biometric
     # data itself; a third-party terminal does face capture/matching and
     # pushes scan events to face_id_webhook_secret's URL (see app/faceid.py).
     face_id_enabled       = db.Column(db.Boolean, default=False, nullable=False)
@@ -135,7 +136,7 @@ class Member(db.Model):
     # ── Face ID access control ──────────────────────────────────────────────
     # face_id_external_id is whatever opaque ID the gym's access-control
     # terminal assigns after enrolling this member's face on its own device —
-    # GYMPro never receives or stores the face image/template itself.
+    # KriyaCore never receives or stores the face image/template itself.
     face_id_external_id = db.Column(db.String(80), nullable=True)
     face_id_consent_at  = db.Column(db.DateTime, nullable=True)
 
@@ -374,6 +375,389 @@ class MemberMembership(db.Model):
 
     def __repr__(self):
         return f'<Membership member={self.member_id} plan={self.plan_id}>'
+
+
+# What a small Indian gym actually spends money on. Kept as a fixed list
+# rather than free text so the dashboard breakdown stays comparable month to
+# month — "Electricity" and "electricity bill" as two categories would make
+# the totals useless.
+EXPENSE_CATEGORIES = [
+    ('rent',        'Rent'),
+    ('salaries',    'Salaries & wages'),
+    ('utilities',   'Electricity & water'),
+    ('equipment',   'Equipment & repairs'),
+    ('maintenance', 'Housekeeping & maintenance'),
+    ('marketing',   'Marketing'),
+    ('supplies',    'Supplies'),
+    ('other',       'Other'),
+]
+
+EXPENSE_CATEGORY_LABELS = dict(EXPENSE_CATEGORIES)
+
+
+class Expense(db.Model):
+    """Money going out. Without this the dashboard can only show revenue,
+    which tells an owner what they earned but not whether they made anything.
+
+    Deliberately a plain manual ledger — no recurring-expense engine, no
+    approvals. A two-person gym enters rent once a month; anything more
+    elaborate would be unused machinery.
+    """
+    __tablename__ = 'expenses'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    gym_id      = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    category    = db.Column(db.String(30), nullable=False, default='other')
+    amount      = db.Column(db.Float, nullable=False)
+    incurred_on = db.Column(db.Date, nullable=False, default=date.today)
+    note        = db.Column(db.String(255), nullable=True)
+
+    # Name, not a FK: the record of who entered a cost should survive that
+    # staff member leaving and their account being deleted.
+    recorded_by_name = db.Column(db.String(100), nullable=True)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+    gym = db.relationship('Gym', backref=db.backref('expenses', lazy=True))
+
+    @property
+    def category_label(self):
+        return EXPENSE_CATEGORY_LABELS.get(self.category, 'Other')
+
+    @staticmethod
+    def total_between(gym_id, start, end):
+        """Sum of expenses in [start, end]. Returns 0.0, never None, so
+        callers can subtract it from revenue without guarding."""
+        total = db.session.query(func.sum(Expense.amount)).filter(
+            Expense.gym_id      == gym_id,
+            Expense.incurred_on >= start,
+            Expense.incurred_on <= end,
+        ).scalar()
+        return float(total or 0.0)
+
+    def __repr__(self):
+        return f'<Expense {self.category} {self.amount} on {self.incurred_on}>'
+
+
+# ── Staff employment ─────────────────────────────────────────────────────────
+
+EMPLOYMENT_TYPES = [
+    ('full_time', 'Full time'),
+    ('part_time', 'Part time'),
+    ('contract',  'Contract'),
+]
+
+# How a trainer is paid for personal training, on top of their salary.
+PT_PAY_MODES = [
+    ('none',        'Salary only — PT tracked, not paid separately'),
+    ('commission',  'Percentage of what the member paid'),
+    ('per_session', 'Flat rate per session delivered'),
+]
+
+# An open shift older than this was almost certainly a forgotten clock-out,
+# not a 15-hour day. Flagged for the owner to correct rather than auto-closed
+# at a guessed time — a guessed time quietly becomes wrong payroll.
+STALE_SHIFT_HOURS = 14
+
+
+class StaffProfile(db.Model):
+    """Employment details for a staff user.
+
+    Deliberately a separate table rather than more columns on User: User is
+    the authentication record and is also what a platform_admin logs in as,
+    and none of salary, designation or PT rates mean anything there. A staff
+    member can also exist without a profile — they can log in and work the
+    desk on day one, before anyone has filled in their salary.
+    """
+    __tablename__ = 'staff_profiles'
+
+    id      = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True)
+    gym_id  = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+
+    phone           = db.Column(db.String(20),  nullable=True)
+    date_of_birth   = db.Column(db.Date,        nullable=True)
+    address         = db.Column(db.String(255), nullable=True)
+    designation     = db.Column(db.String(80),  nullable=True)   # "Head Trainer", "Front Desk"
+    employment_type = db.Column(db.String(20),  default='full_time')
+    joined_on       = db.Column(db.Date,        nullable=True)
+
+    emergency_contact_name  = db.Column(db.String(100), nullable=True)
+    emergency_contact_phone = db.Column(db.String(20),  nullable=True)
+
+    # Salary is stored per month regardless of employment type — a part-timer
+    # on a monthly retainer and a full-timer are the same shape here, and
+    # hourly pay is derived from shifts when it's needed.
+    salary_amount = db.Column(db.Float, nullable=True)
+
+    # ── Personal training pay ────────────────────────────────────────────
+    # Per trainer, not per gym: a senior trainer on 40% and a junior on a
+    # flat ₹300 a session is an ordinary arrangement, and a single gym-wide
+    # setting would force one of them onto the wrong deal.
+    pt_pay_mode       = db.Column(db.String(20), default='none')
+    pt_commission_pct = db.Column(db.Float, nullable=True)   # e.g. 40.0 == 40%
+    pt_session_rate   = db.Column(db.Float, nullable=True)   # flat ₹ per session
+
+    notes      = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('profile', uselist=False))
+
+    @property
+    def employment_label(self):
+        return dict(EMPLOYMENT_TYPES).get(self.employment_type, 'Full time')
+
+    @property
+    def pt_pay_label(self):
+        if self.pt_pay_mode == 'commission' and self.pt_commission_pct:
+            return f'{self.pt_commission_pct:g}% commission'
+        if self.pt_pay_mode == 'per_session' and self.pt_session_rate:
+            return f'₹{self.pt_session_rate:,.0f} per session'
+        return 'Salary only'
+
+    def payout_for(self, package_price, sessions_total):
+        """What this trainer earns for delivering one session of a package.
+
+        Takes the package's numbers rather than reading them off a relation
+        so the caller can snapshot the result at the moment a session is
+        logged — see PTSession.trainer_payout for why that matters.
+        """
+        if self.pt_pay_mode == 'per_session':
+            return float(self.pt_session_rate or 0)
+        if self.pt_pay_mode == 'commission' and self.pt_commission_pct:
+            if not sessions_total:
+                return 0.0
+            per_session_value = float(package_price or 0) / sessions_total
+            return per_session_value * float(self.pt_commission_pct) / 100.0
+        return 0.0
+
+    def __repr__(self):
+        return f'<StaffProfile user={self.user_id}>'
+
+
+class StaffShift(db.Model):
+    """One stretch of a staff member being at work.
+
+    Unlike member attendance — which is arrivals-only because nobody is at
+    the door logging exits — a shift has two ends, because hours worked feed
+    payroll. The cost is that people forget to clock out, so an unclosed
+    shift is surfaced as needing correction rather than silently counted.
+    """
+    __tablename__ = 'staff_shifts'
+
+    id      = db.Column(db.Integer, primary_key=True)
+    gym_id  = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    # Local wall-clock, like Attendance.visited_at and for the same reason:
+    # "clocked in at 6am" has to mean 6am to the person reading the roster.
+    started_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    ended_at   = db.Column(db.DateTime, nullable=True)
+
+    note       = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('shifts', lazy=True))
+
+    @property
+    def is_open(self):
+        return self.ended_at is None
+
+    @property
+    def duration_minutes(self):
+        end = self.ended_at
+        if end is None:
+            return None
+        return max(0, int((end - self.started_at).total_seconds() // 60))
+
+    @property
+    def hours(self):
+        mins = self.duration_minutes
+        return round(mins / 60.0, 2) if mins is not None else None
+
+    @property
+    def needs_attention(self):
+        """An open shift that's run past a plausible working day."""
+        if not self.is_open:
+            return False
+        return (datetime.now() - self.started_at).total_seconds() > STALE_SHIFT_HOURS * 3600
+
+    @staticmethod
+    def open_shift_for(gym_id, user_id):
+        return (StaffShift.query
+                .filter(StaffShift.gym_id == gym_id,
+                        StaffShift.user_id == user_id,
+                        StaffShift.ended_at.is_(None))
+                .order_by(StaffShift.started_at.desc()).first())
+
+    @staticmethod
+    def hours_between(gym_id, user_id, start, end):
+        """Total closed-shift hours in [start, end] by shift start date.
+
+        Open shifts contribute nothing — an unclosed shift has no known
+        length, and guessing one would put invented hours into payroll.
+        """
+        rows = StaffShift.query.filter(
+            StaffShift.gym_id  == gym_id,
+            StaffShift.user_id == user_id,
+            StaffShift.ended_at.isnot(None),
+            StaffShift.started_at >= datetime.combine(start, datetime.min.time()),
+            StaffShift.started_at <= datetime.combine(end, datetime.max.time()),
+        ).all()
+        return round(sum(r.hours or 0 for r in rows), 2)
+
+    def __repr__(self):
+        return f'<StaffShift user={self.user_id} {self.started_at}>'
+
+
+class PTPackage(db.Model):
+    """A block of personal training sessions a member bought from a trainer."""
+    __tablename__ = 'pt_packages'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    gym_id     = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    member_id  = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    trainer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    sessions_total = db.Column(db.Integer, nullable=False, default=1)
+    price          = db.Column(db.Float,   nullable=False, default=0.0)
+    sold_on        = db.Column(db.Date,    nullable=False, default=date.today)
+    expires_on     = db.Column(db.Date,    nullable=True)
+    payment_status = db.Column(db.String(20), default='pending')  # pending / paid
+    payment_date   = db.Column(db.Date,    nullable=True)
+    notes          = db.Column(db.String(255), nullable=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+    member  = db.relationship('Member', backref=db.backref('pt_packages', lazy=True))
+    trainer = db.relationship('User',   backref=db.backref('pt_packages', lazy=True))
+    sessions = db.relationship('PTSession', backref='package', lazy=True,
+                               cascade='all, delete-orphan')
+
+    @property
+    def sessions_used(self):
+        return len(self.sessions)
+
+    @property
+    def sessions_left(self):
+        return max(0, self.sessions_total - self.sessions_used)
+
+    @property
+    def is_complete(self):
+        return self.sessions_left == 0
+
+    @property
+    def is_expired(self):
+        return self.expires_on is not None and self.expires_on < date.today()
+
+    @property
+    def per_session_price(self):
+        if not self.sessions_total:
+            return 0.0
+        return self.price / self.sessions_total
+
+    @property
+    def state(self):
+        """One sentence about where this package stands, in the same spirit
+        as Member.membership_state — one answer, read the same way
+        everywhere."""
+        if self.is_complete:
+            return 'complete', f'All {self.sessions_total} sessions delivered'
+        if self.is_expired:
+            return 'expired', f'Expired with {self.sessions_left} session(s) unused'
+        if self.payment_status != 'paid':
+            return 'unpaid', f'Payment pending — {self.sessions_left} of {self.sessions_total} left'
+        return 'active', f'{self.sessions_left} of {self.sessions_total} sessions left'
+
+    def __repr__(self):
+        return f'<PTPackage member={self.member_id} trainer={self.trainer_id}>'
+
+
+class PTSession(db.Model):
+    """One delivered personal-training session."""
+    __tablename__ = 'pt_sessions'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    gym_id     = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    package_id = db.Column(db.Integer, db.ForeignKey('pt_packages.id'), nullable=False)
+    member_id  = db.Column(db.Integer, db.ForeignKey('members.id'), nullable=False)
+    trainer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    held_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    note    = db.Column(db.String(255), nullable=True)
+
+    # What the trainer earned for this session, worked out and frozen at the
+    # moment it was logged. Recomputing it later from their current rate
+    # would silently rewrite past months' payroll every time a rate changes.
+    trainer_payout = db.Column(db.Float, nullable=False, default=0.0)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    member  = db.relationship('Member', backref=db.backref('pt_sessions', lazy=True))
+    trainer = db.relationship('User',   backref=db.backref('pt_sessions', lazy=True))
+
+    @staticmethod
+    def payout_between(gym_id, trainer_id, start, end):
+        """Sum of frozen payouts for sessions held in [start, end]."""
+        total = db.session.query(func.sum(PTSession.trainer_payout)).filter(
+            PTSession.gym_id  == gym_id,
+            PTSession.trainer_id == trainer_id,
+            PTSession.held_at >= datetime.combine(start, datetime.min.time()),
+            PTSession.held_at <= datetime.combine(end, datetime.max.time()),
+        ).scalar()
+        return float(total or 0.0)
+
+    @staticmethod
+    def count_between(gym_id, trainer_id, start, end):
+        return PTSession.query.filter(
+            PTSession.gym_id  == gym_id,
+            PTSession.trainer_id == trainer_id,
+            PTSession.held_at >= datetime.combine(start, datetime.min.time()),
+            PTSession.held_at <= datetime.combine(end, datetime.max.time()),
+        ).count()
+
+    def __repr__(self):
+        return f'<PTSession pkg={self.package_id} {self.held_at}>'
+
+
+class SalaryPayment(db.Model):
+    """A month's pay for one staff member, once it's actually been paid.
+
+    Recording the payment is a separate act from the dashboard's running
+    total: the running total is what's owed so far, this is what left the
+    till. Keeping them apart means an unpaid month stays visible instead of
+    disappearing into an assumption.
+    """
+    __tablename__ = 'salary_payments'
+
+    id      = db.Column(db.Integer, primary_key=True)
+    gym_id  = db.Column(db.Integer, db.ForeignKey('gyms.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    # Always the 1st of the month being paid for, so one month can't be paid
+    # twice under two different dates.
+    period_month = db.Column(db.Date, nullable=False)
+
+    base_amount = db.Column(db.Float, nullable=False, default=0.0)
+    pt_amount   = db.Column(db.Float, nullable=False, default=0.0)
+    adjustment  = db.Column(db.Float, nullable=False, default=0.0)  # bonus (+) or deduction (−)
+    paid_on     = db.Column(db.Date,  nullable=False, default=date.today)
+    note        = db.Column(db.String(255), nullable=True)
+
+    recorded_by_name = db.Column(db.String(100), nullable=True)
+    created_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('salary_payments', lazy=True))
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'period_month', name='uq_salary_user_month'),
+    )
+
+    @property
+    def total(self):
+        return (self.base_amount or 0) + (self.pt_amount or 0) + (self.adjustment or 0)
+
+    def __repr__(self):
+        return f'<SalaryPayment user={self.user_id} {self.period_month}>'
 
 
 class AuditLog(db.Model):

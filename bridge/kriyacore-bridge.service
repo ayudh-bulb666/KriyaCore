@@ -1,0 +1,53 @@
+# systemd unit for the KriyaCore Face ID bridge.
+# Runs on the gym's Raspberry Pi / front-desk machine — not on the server.
+#
+#   sudo cp kriyacore-bridge.service /etc/systemd/system/
+#   sudo nano /etc/systemd/system/kriyacore-bridge.service   # fill in the values below
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kriyacore-bridge
+
+[Unit]
+Description=KriyaCore Face ID bridge
+# Wait for the network — the terminal can't connect to a socket that isn't
+# bound yet, and the cloud is unreachable without it.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/kriyacore-bridge
+
+Environment=KRIYACORE_URL=https://kriyacore.in
+Environment=GYM_ID=1
+Environment=ALLOWED_SERIALS=ZX0006827500
+Environment=QUEUE_PATH=/home/pi/kriyacore-bridge/bridge_queue.db
+
+# The one real credential in the chain. Keep it out of this file — systemd
+# reads it from a root-owned file with 600 permissions instead, so it isn't
+# visible in `systemctl cat` or a config backup.
+#   echo 'BRIDGE_SECRET=...' | sudo tee /etc/kriyacore-bridge.env
+#   sudo chmod 600 /etc/kriyacore-bridge.env
+EnvironmentFile=/etc/kriyacore-bridge.env
+
+ExecStart=/home/pi/kriyacore-bridge/venv/bin/python kriyacore_bridge.py
+
+# A gym door has to keep working. Always come back, and don't give up after
+# a burst of restarts — an overnight internet outage shouldn't leave the
+# reader dead in the morning.
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=0
+
+# Hardening: this process needs its own directory and the network, nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/pi/kriyacore-bridge
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

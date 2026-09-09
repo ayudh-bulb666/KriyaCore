@@ -6,9 +6,17 @@ __pycache__/
 venv/
 env/
 
-# Database (don't commit the DB — Railway/Render provision their own)
+# Database (don't commit the DB — the server provisions its own Postgres)
 *.db
 instance/
 
+# Locally generated signing key used by deploy/run_public.sh. Committing it
+# would put the key that signs session cookies in a public repo.
+.secret_key.local
+
 # macOS
 .DS_Store
+
+# Bridge: local venv and the offline scan queue
+bridge/venv/
+bridge/*.db

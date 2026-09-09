@@ -1,7 +1,7 @@
 """
 Scheduled jobs — triggered by an external cron, not an in-process scheduler.
 
-Nothing runs on a timer inside GYMPro itself. If it did (e.g. via
+Nothing runs on a timer inside KriyaCore itself. If it did (e.g. via
 APScheduler), a multi-worker gunicorn deploy would spin up one scheduler
 per worker and send every reminder multiple times. Instead, an external
 cron (crontab on the VPS, or Railway's built-in Cron trigger) hits this one

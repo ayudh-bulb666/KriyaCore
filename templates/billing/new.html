@@ -3,7 +3,7 @@
 {% block heading %}Assign Membership{% endblock %}
 
 {% block content %}
-<div class="max-w-lg" x-data="{ selectedPlan: null, plans: {{ plans | tojson }} }">
+<div class="max-w-lg" x-data="{ selectedPlan: null, amount: '', listPrice: 0 }">
   <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6">
     <form method="POST" action="{{ url_for('billing.new') }}" class="space-y-5">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -27,7 +27,7 @@
           {% for plan in plans %}
           <label class="plan-card flex items-center gap-4 p-3.5 border border-gray-200 dark:border-slate-600 rounded-lg cursor-pointer transition-colors">
             <input type="radio" name="plan_id" value="{{ plan.id }}" required
-                   @change="selectedPlan = {{ plan.id }}"
+                   @change="selectedPlan = {{ plan.id }}; amount = {{ plan.price }}; listPrice = {{ plan.price }}"
                    style="accent-color: var(--brand)" />
             <div class="flex-1">
               <p class="font-medium text-gray-800 dark:text-slate-200">{{ plan.name }}</p>
@@ -37,6 +37,31 @@
           </label>
           {% endfor %}
         </div>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5" for="amount">
+          Amount charged
+        </label>
+        <div class="relative">
+          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500 text-sm">₹</span>
+          <input id="amount" name="amount" type="number" min="0" step="0.01"
+                 x-model="amount" :disabled="selectedPlan === null"
+                 placeholder="Pick a plan first"
+                 class="w-full pl-7 pr-3.5 py-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand disabled:bg-gray-50 dark:disabled:bg-slate-800 disabled:text-gray-400" />
+        </div>
+        <p class="type-p3 mt-1.5"
+           x-show="selectedPlan !== null && Number(amount) !== Number(listPrice)"
+           x-cloak>
+          <span class="text-amber-600 dark:text-amber-400 font-medium">
+            Not the list price — this member will be charged ₹<span x-text="Number(amount || 0).toFixed(0)"></span>
+            instead of ₹<span x-text="Number(listPrice).toFixed(0)"></span>.
+          </span>
+        </p>
+        <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1.5"
+           x-show="selectedPlan === null || Number(amount) === Number(listPrice)">
+          Defaults to the plan price. Change it for a discount or a negotiated rate.
+        </p>
       </div>
 
       <div>

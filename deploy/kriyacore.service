@@ -1,0 +1,36 @@
+# systemd unit for KriyaCore — keeps the app running, auto-restarts on crash,
+# auto-starts on server boot.
+#
+# Install:
+#   sudo cp deploy/kriyacore.service /etc/systemd/system/kriyacore.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kriyacore
+#
+# Logs:
+#   sudo journalctl -u kriyacore -f
+
+[Unit]
+Description=KriyaCore Flask app (Gunicorn)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/home/deploy/kriyacore
+EnvironmentFile=/home/deploy/kriyacore/.env
+ExecStart=/home/deploy/kriyacore/venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --access-logfile - \
+    --error-logfile - \
+    run:app
+Restart=always
+RestartSec=5
+
+# Basic hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

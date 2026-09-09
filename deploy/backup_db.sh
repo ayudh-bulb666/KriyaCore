@@ -1,5 +1,5 @@
 #!/bin/bash
-# Nightly Postgres backup for GYMPro — no managed backups on a self-hosted
+# Nightly Postgres backup for KriyaCore — no managed backups on a self-hosted
 # VPS, so this replaces what Railway's Postgres add-on gives you for free.
 #
 # Install:
@@ -11,21 +11,21 @@
 
 set -euo pipefail
 
-DB_NAME="gympro"
-DB_USER="gympro"
+DB_NAME="kriyacore"
+DB_USER="kriyacore"
 BACKUP_DIR="/home/deploy/backups"
 KEEP_DAYS=14
 
 mkdir -p "$BACKUP_DIR"
 
 STAMP=$(date +%Y-%m-%d_%H%M)
-FILE="$BACKUP_DIR/gympro_$STAMP.sql.gz"
+FILE="$BACKUP_DIR/kriyacore_$STAMP.sql.gz"
 
 pg_dump -U "$DB_USER" "$DB_NAME" | gzip > "$FILE"
 echo "$(date): backed up to $FILE"
 
 # Delete backups older than KEEP_DAYS
-find "$BACKUP_DIR" -name "gympro_*.sql.gz" -mtime +"$KEEP_DAYS" -delete
+find "$BACKUP_DIR" -name "kriyacore_*.sql.gz" -mtime +"$KEEP_DAYS" -delete
 
 # Optional but recommended: also copy $FILE off-box (e.g. rclone to
 # Backblaze B2 / a free-tier S3 bucket) so a disk failure doesn't take

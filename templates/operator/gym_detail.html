@@ -458,7 +458,7 @@
         <label class="block text-xs font-semibold text-gray-600 dark:text-slate-400 mb-1.5">New Password</label>
         <div class="relative">
           <input name="new_password" :type="show ? 'text' : 'password'" required
-                 x-model="pw" minlength="8" autocomplete="new-password"
+                 x-model="pw" minlength="10" autocomplete="new-password"
                  placeholder="Min. 8 characters"
                  class="w-full px-3.5 py-2.5 pr-10 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-slate-500">
           <button type="button" @click="show = !show"

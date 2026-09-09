@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 {% block title %}Staff{% endblock %}
-{% block heading %}Staff Management{% endblock %}
+{% block heading %}Staff{% endblock %}
 
 {% block header_actions %}
 <a href="{{ url_for('staff.new') }}"
-   class="inline-flex items-center gap-1.5 px-4 py-2 btn-brand text-sm font-medium rounded-lg transition-colors shadow">
+   class="inline-flex items-center gap-1.5 px-4 py-2 btn-brand text-sm font-medium rounded-lg transition-colors shadow-sm">
   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
   </svg>
@@ -13,179 +13,129 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="{ resetModal: false, resetUserId: null, resetName: '', gymSlug: '{{ current_gym.slug }}' }">
+
+<div class="flex items-center justify-between mb-4">
+  <p class="type-p2 text-gray-500 dark:text-slate-400">
+    {{ rows|length }} staff member{% if rows|length != 1 %}s{% endif %}
+    {% if on_shift %}
+    · <span class="text-green-700 dark:text-green-400 font-medium">{{ on_shift }} on shift now</span>
+    {% endif %}
+  </p>
+  <p class="type-p3 text-gray-400 dark:text-slate-500">Hours and PT shown for {{ month_label }}</p>
+</div>
 
 <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden">
-  {% if staff %}
-  <table class="w-full text-sm">
-    <thead>
-      <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
-        <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Name</th>
-        <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Email</th>
-        <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Members Assigned</th>
-        <th class="text-left px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Joined</th>
-        <th class="px-4 py-3"></th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
-      {% for member in staff %}
-      <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-        <td class="px-4 py-3">
-          <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center text-slate-600 dark:text-slate-300 text-xs font-bold">
-              {{ member.name[:2]|upper }}
+  {% if rows %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-50 dark:bg-slate-700/50 border-b border-gray-100 dark:border-slate-700">
+          <th class="text-left  px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Name</th>
+          <th class="text-left  px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Role</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Salary</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Hours</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">PT</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">PT earned</th>
+          <th class="text-right px-4 py-3 type-h4 text-gray-500 dark:text-slate-400">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700">
+        {% for r in rows %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full avatar-brand flex items-center justify-center text-xs font-bold shrink-0">
+                {{ r.user.name[:2]|upper }}
+              </div>
+              <div class="min-w-0">
+                <a href="{{ url_for('staff.detail', user_id=r.user.id) }}"
+                   class="font-medium text-gray-900 dark:text-slate-100 hover-brand transition-colors">
+                  {{ r.user.name }}
+                </a>
+                <p class="type-p3 text-gray-400 dark:text-slate-500 truncate">{{ r.user.email }}</p>
+              </div>
             </div>
-            <span class="font-medium text-gray-900 dark:text-slate-100">{{ member.name }}</span>
-          </div>
-        </td>
-        <td class="px-4 py-3 text-gray-500 dark:text-slate-400">{{ member.email }}</td>
-        <td class="px-4 py-3 text-gray-700 dark:text-slate-300">{{ member.assigned_members|length }}</td>
-        <td class="px-4 py-3 text-gray-500 dark:text-slate-400">{{ member.created_at.strftime('%b %d, %Y') }}</td>
-        <td class="px-4 py-3">
-          <div class="flex items-center justify-end gap-2">
-            <!-- Reset password -->
-            <button type="button"
-                    @click="resetModal = true; resetUserId = {{ member.id }}; resetName = '{{ member.name }}'"
-                    class="p-1.5 text-gray-400 dark:text-slate-500 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-colors"
-                    title="Reset password">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-              </svg>
-            </button>
-            <!-- Delete -->
-            <form method="POST" action="{{ url_for('staff.delete', user_id=member.id) }}"
-                  onsubmit="return confirm('Remove {{ member.name }} from staff?')">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button type="submit" class="p-1.5 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Remove">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                </svg>
-              </button>
-            </form>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          </td>
+          <td class="px-4 py-3 whitespace-nowrap">
+            <p class="text-gray-700 dark:text-slate-300">{{ r.designation }}</p>
+            {#  On-shift state belongs next to the person, not in a separate
+                column — it's the one fact about them that changes hourly.
+                Kept to a few words: the column is narrow, and the exact
+                times are on their page anyway. #}
+            {% if r.open_shift %}
+            <p class="type-p3 font-medium {% if r.open_shift.needs_attention %}text-amber-600 dark:text-amber-400{% else %}text-green-700 dark:text-green-400{% endif %}"
+               title="Started {{ r.open_shift.started_at.strftime('%d %b at %I:%M %p') }}">
+              {% if r.open_shift.needs_attention %}⚠ shift left open
+              {% else %}● since {{ r.open_shift.started_at.strftime('%I:%M %p') }}{% endif %}
+            </p>
+            {% else %}
+            <p class="type-p3 text-gray-400 dark:text-slate-500">
+              {{ r.members }} member{% if r.members != 1 %}s{% endif %} assigned
+            </p>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-700 dark:text-slate-300 whitespace-nowrap">
+            {% if r.salary %}₹{{ "{:,.0f}".format(r.salary) }}<span class="type-p3 text-gray-400 dark:text-slate-500">/mo</span>
+            {% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-700 dark:text-slate-300 whitespace-nowrap">
+            {% if r.hours %}{{ "%.1f"|format(r.hours) }}h{% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-700 dark:text-slate-300">
+            {% if r.pt_sessions %}{{ r.pt_sessions }}{% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right whitespace-nowrap">
+            {% if r.pt_payout %}
+            <span class="font-semibold text-gray-900 dark:text-slate-100">₹{{ "{:,.0f}".format(r.pt_payout) }}</span>
+            {% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+          <td class="px-4 py-3">
+            {#  Two fixed-width slots so the clock button and View sit at the
+                same x-position on every row. A control that shifts between
+                rows is one you click by mistake. #}
+            <div class="flex items-center justify-end gap-2">
+              <div class="w-[92px]">
+                {% if r.open_shift %}
+                <form method="POST" action="{{ url_for('staff.shift_end', user_id=r.user.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit"
+                          class="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap
+                                 border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-200
+                                 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors">
+                    Clock out
+                  </button>
+                </form>
+                {% else %}
+                <form method="POST" action="{{ url_for('staff.shift_start', user_id=r.user.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit"
+                          class="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 btn-brand text-xs font-semibold rounded-lg shadow-sm whitespace-nowrap">
+                    Clock in
+                  </button>
+                </form>
+                {% endif %}
+              </div>
+              <div class="w-[68px]">
+                <a href="{{ url_for('staff.detail', user_id=r.user.id) }}"
+                   class="w-full inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap
+                          border border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400
+                          hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-200 transition-colors">
+                  View
+                </a>
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% else %}
-  <div class="py-16 text-center text-gray-400 dark:text-slate-500">
-    <p class="font-medium">No staff members yet.</p>
-    <p class="text-sm mt-1"><a href="{{ url_for('staff.new') }}" class="link-brand">Add one now</a></p>
+  <div class="py-16 text-center">
+    <p class="type-p2 text-gray-500 dark:text-slate-400">No staff yet.</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">Add your trainers and front-desk team to track hours, PT and salary.</p>
   </div>
   {% endif %}
 </div>
 
-<!-- ── Reset password modal ──────────────────────────────────────────────── -->
-<div x-show="resetModal" x-cloak
-     class="fixed inset-0 z-50 flex items-center justify-center p-4"
-     @keydown.escape.window="resetModal = false">
-
-  <!-- Backdrop -->
-  <div class="absolute inset-0 bg-black/50 dark:bg-black/70"
-       @click="resetModal = false"></div>
-
-  <!-- Panel -->
-  <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
-       @click.stop x-data="{ show1: false, show2: false, strength: 0 }">
-
-    <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-slate-700">
-      <div class="w-9 h-9 bg-amber-100 dark:bg-amber-900/40 rounded-xl flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-        </svg>
-      </div>
-      <div>
-        <p class="type-h3 text-gray-900 dark:text-white">Reset Password</p>
-        <p class="type-p3 text-gray-400 dark:text-slate-500" x-text="'For ' + resetName"></p>
-      </div>
-      <button @click="resetModal = false"
-              class="ml-auto text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-      </button>
-    </div>
-
-    <form method="POST" :action="'/' + gymSlug + '/staff/' + resetUserId + '/reset-password'"
-          class="px-5 py-4 space-y-3">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-      <!-- New password -->
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 dark:text-slate-400 mb-1">New password</label>
-        <div class="relative">
-          <input :type="show1 ? 'text' : 'password'" name="new_password" required minlength="8"
-                 x-on:input="
-                   let v = $event.target.value;
-                   strength = 0;
-                   if (v.length >= 8) strength++;
-                   if (/[A-Z]/.test(v)) strength++;
-                   if (/[0-9]/.test(v)) strength++;
-                   if (/[^A-Za-z0-9]/.test(v)) strength++;
-                 "
-                 class="w-full px-3 py-2 pr-10 text-sm border border-gray-200 dark:border-slate-600 rounded-lg
-                        bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
-                        focus:outline-none focus:ring-2 focus:ring-amber-400 dark:focus:ring-amber-500"
-                 placeholder="Min. 8 characters">
-          <button type="button" @click="show1 = !show1"
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <svg x-show="!show1" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-            </svg>
-            <svg x-show="show1" x-cloak class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-            </svg>
-          </button>
-        </div>
-        <!-- Strength bar -->
-        <div class="flex gap-1 mt-1.5" x-show="strength > 0" x-cloak>
-          <div class="h-1 flex-1 rounded-full" :style="strength >= 1 ? 'background:#ef4444' : 'background:#e5e7eb'"></div>
-          <div class="h-1 flex-1 rounded-full" :style="strength >= 2 ? 'background:#f97316' : 'background:#e5e7eb'"></div>
-          <div class="h-1 flex-1 rounded-full" :style="strength >= 3 ? 'background:#eab308' : 'background:#e5e7eb'"></div>
-          <div class="h-1 flex-1 rounded-full" :style="strength >= 4 ? 'background:#22c55e' : 'background:#e5e7eb'"></div>
-        </div>
-      </div>
-
-      <!-- Confirm password -->
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 dark:text-slate-400 mb-1">Confirm password</label>
-        <div class="relative">
-          <input :type="show2 ? 'text' : 'password'" name="confirm_password" required minlength="8"
-                 class="w-full px-3 py-2 pr-10 text-sm border border-gray-200 dark:border-slate-600 rounded-lg
-                        bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
-                        focus:outline-none focus:ring-2 focus:ring-amber-400 dark:focus:ring-amber-500"
-                 placeholder="Re-enter password">
-          <button type="button" @click="show2 = !show2"
-                  class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <svg x-show="!show2" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-            </svg>
-            <svg x-show="show2" x-cloak class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="flex gap-2 pt-1">
-        <button type="button" @click="resetModal = false"
-                class="flex-1 px-4 py-2 text-sm font-medium border border-gray-200 dark:border-slate-600
-                       text-gray-600 dark:text-slate-400 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-          Cancel
-        </button>
-        <button type="submit"
-                class="flex-1 px-4 py-2 text-sm font-semibold btn-brand rounded-lg transition-colors">
-          Reset
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
-
-</div><!-- /x-data -->
 {% endblock %}

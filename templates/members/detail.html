@@ -97,7 +97,7 @@
         </p>
       </div>
       <form method="POST" action="{{ url_for('members.set_face_id', member_id=member.id) }}"
-            onsubmit="return confirm('This only removes {{ member.full_name }}\'s record in GYMPro. Their actual face enrollment still exists on the access-control device itself — delete it there too, or they can still scan in. Continue?')">
+            onsubmit="return confirm('This only removes {{ member.full_name }}\'s record in KriyaCore. Their actual face enrollment still exists on the access-control device itself — delete it there too, or they can still scan in. Continue?')">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="unenroll">
         <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-lg border border-red-200 dark:border-red-800 transition-colors">
@@ -189,10 +189,49 @@
     <h3 class="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-4">Current Membership</h3>
     <div class="flex items-center gap-4 p-4 rounded-lg
                 {% if active_mem.is_expiring_soon %}bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40{% else %}bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/40{% endif %}">
-      <div class="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+      <div class="flex-1 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
         <div>
           <p class="type-p3 text-gray-500 dark:text-slate-400">Plan</p>
           <p class="font-semibold text-gray-900 dark:text-slate-100">{{ active_mem.plan.name }}</p>
+        </div>
+        {#  Amount is per-member, not per-plan — discounts and negotiated rates
+            are the norm. Editable in place, but click-to-edit rather than a
+            live input, so a stray scroll over a number field can't quietly
+            change what someone is charged. #}
+        <div x-data="{ editing: false }">
+          <p class="type-p3 text-gray-500 dark:text-slate-400">Amount</p>
+          <div x-show="!editing">
+            <button type="button" @click="editing = true; $nextTick(() => $refs.amt.focus())"
+                    class="group inline-flex items-center gap-1 font-semibold text-gray-900 dark:text-slate-100 hover-brand transition-colors">
+              ₹{{ "%.0f"|format(active_mem.amount) }}
+              <svg class="w-3 h-3 text-gray-400 dark:text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+            {% if active_mem.amount != active_mem.plan.price %}
+            <p class="type-p3 text-gray-400 dark:text-slate-500">
+              list ₹{{ "%.0f"|format(active_mem.plan.price) }}
+            </p>
+            {% endif %}
+          </div>
+          {#  Stacked, not inline: the grid cell is ~90px wide, and an input
+              plus two buttons on one row spills over the next column and
+              covers the dates. #}
+          <form x-show="editing" x-cloak method="POST" class="mt-0.5"
+                action="{{ url_for('billing.set_amount', membership_id=active_mem.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input x-ref="amt" name="amount" type="number" min="0" step="0.01"
+                   value="{{ "%.2f"|format(active_mem.amount) }}"
+                   @keydown.escape="editing = false"
+                   class="w-full px-2 py-1 border border-gray-300 dark:border-slate-500 rounded text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 focus-brand"/>
+            <div class="flex items-center gap-1 mt-1">
+              <button type="submit" class="px-2 py-1 btn-brand text-xs font-semibold rounded">Save</button>
+              <button type="button" @click="editing = false"
+                      class="px-1.5 py-1 text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">Cancel</button>
+            </div>
+          </form>
         </div>
         <div>
           <p class="type-p3 text-gray-500 dark:text-slate-400">Started</p>
@@ -237,7 +276,7 @@
         </form>
         {% endif %}
         <form method="POST" action="{{ url_for('billing.renew', membership_id=active_mem.id) }}"
-              onsubmit="return confirm('Start a new {{ active_mem.plan.name }} cycle for {{ member.full_name }}?\n\nThe current one is marked expired and a new unpaid membership is created.')">
+              onsubmit="return confirm('Start a new {{ active_mem.plan.name }} cycle for {{ member.full_name }} at ₹{{ '%.0f'|format(active_mem.amount) }}?\n\nThe current one is marked expired and a new unpaid membership is created. You can change the amount on the new one.')">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap
@@ -388,29 +427,13 @@
         </a>
       </div>
 
-      <!-- Log a request -->
-      <div class="flex items-center justify-between gap-4 border border-gray-100 dark:border-slate-700 rounded-xl px-4 py-3">
-        <div class="min-w-0">
-          <p class="text-sm font-medium text-gray-800 dark:text-slate-200">Log a request</p>
-          <p class="type-p3 text-gray-400 dark:text-slate-500">Record that {{ member.first_name }} asked, to fulfil once identity is verified</p>
-        </div>
-        <div class="flex gap-2 shrink-0">
-          <form method="POST" action="{{ url_for('privacy.log_request', member_id=member.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="request_type" value="export">
-            <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors whitespace-nowrap">
-              Export ask
-            </button>
-          </form>
-          <form method="POST" action="{{ url_for('privacy.log_request', member_id=member.id) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="request_type" value="erasure">
-            <button type="submit" class="px-3 py-1.5 text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors whitespace-nowrap">
-              Erasure ask
-            </button>
-          </form>
-        </div>
-      </div>
+      {#  "Log a request" is hidden for now — with two gyms, whoever takes the
+          request is the person who fulfils it a minute later, so the intake
+          step was pure ceremony. The privacy.log_request route stays live,
+          and Export/Erase below now write their own completed DataRequest
+          row when no pending one exists, so the DPDP audit trail survives
+          without it. Bring the button back when a gym is large enough that
+          asking and fulfilling happen on different days. #}
 
       <!-- Erase -->
       <div class="border border-red-100 dark:border-red-900/40 rounded-xl px-4 py-3">
@@ -427,7 +450,7 @@
         <div x-show="showErase" x-cloak class="mt-3 pt-3 border-t border-red-100 dark:border-red-900/40">
           <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-3 py-2.5 mb-3">
             <p class="type-p3 text-amber-800 dark:text-amber-300">
-              <span class="font-semibold">Erasing here doesn't reach outside GYMPro.</span>
+              <span class="font-semibold">Erasing here doesn't reach outside KriyaCore.</span>
               {% if member.face_id_external_id %}
               Their face enrollment still lives on the access-control device — delete it there too.
               {% endif %}

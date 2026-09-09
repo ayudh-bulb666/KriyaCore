@@ -1,5 +1,10 @@
-Flask==3.0.3
+# NOTE: run this on Python 3.10 or newer. Python 3.9 went end-of-life on
+# 31 Oct 2025, and the ecosystem has followed — requests >=2.33, urllib3
+# >=2.7 and click >=8.2 all require 3.10+, so on 3.9 those CVE fixes are
+# simply unreachable. Ubuntu 24.04 ships Python 3.12; use that on the server.
+Flask==3.1.3
 Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
 Flask-Login==0.6.3
 Flask-Limiter==3.8.0
 Flask-WTF==1.2.1

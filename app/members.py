@@ -6,15 +6,47 @@ from datetime import date, datetime
 
 from .models import (db, Member, User, MemberMembership, Attendance,
                      Notification, WhatsAppMessage, DataRequest)
-from .helpers import role_required
+from .helpers import role_required, own_gym_id
 from .plans import plan_within_member_limit, plan_has, PLANS
 
 members_bp = Blueprint('members', __name__, url_prefix='/<string:gym_slug>/members')
 
 
-def _apply_member_filters(query, search, status_filter, trainer_filter):
-    """Shared by index() and export_csv() so the search/filter UI and the
-    exported CSV always match the same set of members."""
+# The tab bar across the top of the member list, mirroring Billing's.
+# Keys map to Member.membership_state, except 'inactive', which is the
+# member's own account status — a suspended member still has a membership
+# state, and staff need one control that surfaces both kinds of problem.
+MEMBER_TABS = [
+    ('all',      'All'),
+    ('active',   'Active'),
+    ('expiring', 'Expiring'),
+    ('unpaid',   'Unpaid'),
+    ('expired',  'Expired'),
+    ('none',     'No plan'),
+    ('inactive', 'Inactive'),
+]
+
+
+def _matches_state(member, state, key):
+    if key == 'all':
+        return True
+    if key == 'inactive':
+        return member.status != 'active'
+    return state == key
+
+
+def _filtered_members(gid, search, state_filter, trainer_filter):
+    """Shared by index() and export_csv() so the list on screen and the
+    exported CSV are always the same set of people.
+
+    Text and trainer narrow the query in SQL; membership state is decided in
+    Python by Member.membership_state. That's deliberate — that property is
+    the single source of truth the Face ID door and front desk also read, so
+    filtering through it means a tab count can never disagree with the badge
+    printed on the row. At a few hundred members a gym it costs nothing.
+    """
+    query = Member.query.filter_by(gym_id=gid)
+
     if search:
         like = f'%{search}%'
         query = query.filter(
@@ -25,14 +57,29 @@ def _apply_member_filters(query, search, status_filter, trainer_filter):
                 Member.phone.ilike(like),
             )
         )
-    if status_filter:
-        query = query.filter_by(status=status_filter)
     if trainer_filter:
         if trainer_filter == 'none':
             query = query.filter(Member.assigned_trainer_id.is_(None))
         else:
             query = query.filter_by(assigned_trainer_id=int(trainer_filter))
-    return query
+
+    rows = query.order_by(Member.first_name.asc()).all()
+
+    # One pass: decide each member's state once, then bucket for the counts
+    # and filter for the visible list off that same answer.
+    counts  = {key: 0 for key, _ in MEMBER_TABS}
+    visible = []
+    for m in rows:
+        state, message = m.membership_state
+        m.state         = state          # stashed for the template badge
+        m.state_message = message
+        for key, _ in MEMBER_TABS:
+            if _matches_state(m, state, key):
+                counts[key] += 1
+        if _matches_state(m, state, state_filter):
+            visible.append(m)
+
+    return visible, counts
 
 
 @members_bp.route('/')
@@ -40,13 +87,13 @@ def _apply_member_filters(query, search, status_filter, trainer_filter):
 def index():
     gid            = current_user.gym_id
     search         = request.args.get('search', '').strip()
-    status_filter  = request.args.get('status', '')
+    state_filter   = request.args.get('state', 'all')
     trainer_filter = request.args.get('trainer', '')
 
-    query = _apply_member_filters(
-        Member.query.filter_by(gym_id=gid), search, status_filter, trainer_filter
-    )
-    members  = query.order_by(Member.first_name.asc()).all()
+    if state_filter not in dict(MEMBER_TABS):
+        state_filter = 'all'
+
+    members, counts = _filtered_members(gid, search, state_filter, trainer_filter)
     trainers = User.query.filter_by(gym_id=gid, role='staff').order_by(User.name).all()
 
     return render_template(
@@ -54,8 +101,10 @@ def index():
         members=members,
         trainers=trainers,
         search=search,
-        status_filter=status_filter,
+        state_filter=state_filter,
         trainer_filter=trainer_filter,
+        tabs=MEMBER_TABS,
+        counts=counts,
     )
 
 
@@ -99,7 +148,9 @@ def new():
             phone=phone,
             date_of_birth=dob,
             joining_date=joining,
-            assigned_trainer_id=int(trainer_id) if trainer_id else None,
+            # Validated, not trusted: an unchecked id here attaches another
+            # gym's trainer to our member, leaking their name into this gym.
+            assigned_trainer_id=own_gym_id(User, trainer_id, gid, role='staff'),
             status=status,
             notes=notes,
         )
@@ -122,7 +173,7 @@ def detail(member_id):
 @login_required
 def set_face_id(member_id):
     """Record the enrollment ID the gym's access-control terminal assigned
-    this member, plus their consent to biometric processing. GYMPro never
+    this member, plus their consent to biometric processing. KriyaCore never
     handles the actual face data — only this opaque mapping."""
     gym = current_user.gym
     if not gym or not gym.face_id_enabled:
@@ -212,7 +263,7 @@ def edit(member_id):
 
         member.date_of_birth        = date.fromisoformat(dob_str) if dob_str else None
         member.joining_date         = date.fromisoformat(joining_str)
-        member.assigned_trainer_id  = int(trainer_id) if trainer_id else None
+        member.assigned_trainer_id  = own_gym_id(User, trainer_id, gid, role='staff')
 
         db.session.commit()
         flash(f'{member.full_name} has been updated.', 'success')
@@ -226,20 +277,20 @@ def edit(member_id):
 def export_csv():
     gid            = current_user.gym_id
     search         = request.args.get('search', '').strip()
-    status_filter  = request.args.get('status', '')
+    state_filter   = request.args.get('state', 'all')
     trainer_filter = request.args.get('trainer', '')
 
-    query = _apply_member_filters(
-        Member.query.filter_by(gym_id=gid), search, status_filter, trainer_filter
-    )
-    members = query.order_by(Member.first_name).all()
+    if state_filter not in dict(MEMBER_TABS):
+        state_filter = 'all'
+
+    members, _ = _filtered_members(gid, search, state_filter, trainer_filter)
 
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow([
         'ID', 'First Name', 'Last Name', 'Email', 'Phone',
         'Date of Birth', 'Joining Date', 'Trainer', 'Status',
-        'Active Plan', 'Plan Expires', 'Notes',
+        'Active Plan', 'Plan Expires', 'Amount', 'Membership State', 'Notes',
     ])
     for m in members:
         am = m.active_membership
@@ -251,6 +302,8 @@ def export_csv():
             m.status,
             am.plan.name if am else '',
             am.end_date.isoformat() if am else '',
+            f'{am.amount:.2f}' if am else '',
+            m.state_message,
             m.notes or '',
         ])
 

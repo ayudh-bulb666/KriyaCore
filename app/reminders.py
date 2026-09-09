@@ -22,7 +22,7 @@ def _mail_config():
         'use_tls':  current_app.config.get('MAIL_USE_TLS', True),
         'username': current_app.config.get('MAIL_USERNAME', ''),
         'password': current_app.config.get('MAIL_PASSWORD', ''),
-        'sender':   current_app.config.get('MAIL_DEFAULT_SENDER', 'GYMPro <noreply@gympro.com>'),
+        'sender':   current_app.config.get('MAIL_DEFAULT_SENDER', 'KriyaCore <noreply@kriyacore.com>'),
     }
 
 
@@ -102,7 +102,7 @@ def send():
         else:
             day_phrase = f'in {days_left} days'
 
-        subject   = f'⏰ Your GYMPro membership expires {day_phrase}'
+        subject   = f'⏰ Your KriyaCore membership expires {day_phrase}'
         html_body = render_template(
             'reminders/email.html',
             membership=mem,
@@ -137,7 +137,7 @@ def test_email():
     try:
         html_body = render_template('reminders/test_email.html', user=current_user)
         _send_one(
-            subject='GYMPro — SMTP Test ✅',
+            subject='KriyaCore — SMTP Test ✅',
             to_email=current_user.email,
             html_body=html_body,
             cfg=cfg,

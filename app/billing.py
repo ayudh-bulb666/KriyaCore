@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from datetime import date, timedelta
 from xhtml2pdf import pisa
 
+from .helpers import own_gym_id
 from .models import db, Member, MemberMembership, MembershipPlan
 from .plans import plan_has
 from .whatsapp import send_and_log
@@ -107,6 +108,25 @@ def export_csv():
     )
 
 
+def _parse_amount(raw, fallback):
+    """Read a rupee amount off a form. Blank means 'use the plan price'.
+
+    Returns (amount, error). A bad value is rejected rather than quietly
+    coerced — silently turning a typo into ₹0 would corrupt the revenue
+    figures the owner makes decisions on.
+    """
+    raw = (raw or '').strip().replace(',', '')
+    if not raw:
+        return fallback, None
+    try:
+        value = float(raw)
+    except ValueError:
+        return None, 'Amount must be a number.'
+    if value < 0:
+        return None, 'Amount cannot be negative.'
+    return round(value, 2), None
+
+
 @billing_bp.route('/new', methods=['GET', 'POST'])
 @login_required
 def new():
@@ -125,26 +145,46 @@ def new():
             flash('Member, plan, and start date are required.', 'danger')
             return render_template('billing/new.html', members=members, plans=plans)
 
-        plan       = MembershipPlan.query.filter_by(id=int(plan_id), gym_id=gid).first_or_404()
+        plan = MembershipPlan.query.filter_by(id=int(plan_id), gym_id=gid).first_or_404()
+
+        # The member has to belong to this gym. The dropdown only offers our
+        # own members, but the POST can carry any id — without this check a
+        # gym could file a billing row against another gym's member, and that
+        # member's name would then show up on this gym's billing page.
+        safe_member_id = own_gym_id(Member, member_id, gid)
+        if safe_member_id is None:
+            flash('That member could not be found in this gym.', 'danger')
+            return render_template('billing/new.html', members=members, plans=plans,
+                                   today=date.today().isoformat())
+
         start_date = date.fromisoformat(start_str)
         end_date   = start_date + timedelta(days=plan.duration_days)
 
+        # The plan price is the starting point, not the rule — corporate rates,
+        # referral discounts and part-payments are normal, so what the member
+        # actually agreed to is stored on the membership itself.
+        amount, error = _parse_amount(request.form.get('amount'), plan.price)
+        if error:
+            flash(error, 'danger')
+            return render_template('billing/new.html', members=members, plans=plans,
+                                   today=date.today().isoformat())
+
         mem = MemberMembership(
             gym_id=gid,
-            member_id=int(member_id),
+            member_id=safe_member_id,
             plan_id=plan.id,
             start_date=start_date,
             end_date=end_date,
             status='active',
             payment_status=payment_status,
-            amount=plan.price,
+            amount=amount,
             payment_date=date.today() if payment_status == 'paid' else None,
             notes=notes,
         )
         db.session.add(mem)
         db.session.commit()
 
-        member = Member.query.get(int(member_id))
+        member = db.session.get(Member, safe_member_id)
         flash(f'Membership assigned to {member.full_name} successfully.', 'success')
         return redirect(url_for('billing.index'))
 
@@ -196,13 +236,42 @@ def renew(membership_id):
         end_date=new_end,
         status='active',
         payment_status='pending',
-        amount=plan.price,
+        # Carry the last agreed amount forward, not the plan's list price.
+        # If this member was on a negotiated rate, renewing them shouldn't
+        # silently put the price back up — that surfaces as an argument at
+        # the desk. Staff can still change it on the renewed row.
+        amount=old.amount,
     )
     db.session.add(new_mem)
     db.session.commit()
 
-    flash(f'Membership renewed for {old.member.full_name} until {new_end.strftime("%b %d, %Y")}.', 'success')
+    flash(f'Membership renewed for {old.member.full_name} until {new_end.strftime("%b %d, %Y")} '
+          f'at ₹{new_mem.amount:.0f}.', 'success')
     return redirect(url_for('billing.index'))
+
+
+@billing_bp.route('/<int:membership_id>/amount', methods=['POST'])
+@login_required
+def set_amount(membership_id):
+    """Change what a member is charged for an existing membership."""
+    mem = MemberMembership.query.filter_by(
+        id=membership_id, gym_id=current_user.gym_id).first_or_404()
+
+    amount, error = _parse_amount(request.form.get('amount'), mem.amount)
+    if error:
+        flash(error, 'danger')
+        return redirect(request.referrer or url_for('billing.index'))
+
+    if amount == mem.amount:
+        return redirect(request.referrer or url_for('billing.index'))
+
+    was = mem.amount
+    mem.amount = amount
+    db.session.commit()
+
+    flash(f'{mem.member.full_name}\'s {mem.plan.name} amount changed '
+          f'from ₹{was:.0f} to ₹{amount:.0f}.', 'success')
+    return redirect(request.referrer or url_for('billing.index'))
 
 
 @billing_bp.route('/<int:membership_id>/invoice.pdf')

@@ -266,7 +266,7 @@
 </div>
 
 {% if gyms %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/chart-4.4.3.umd.min.js') }}"></script>
 <script>
 const isDark     = document.documentElement.classList.contains('dark');
 const gridColor  = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.06)';

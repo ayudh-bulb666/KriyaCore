@@ -1,13 +1,13 @@
 """
 DPDP data rights — access/portability and erasure.
 
-Deliberately NOT plan-gated. Every other feature in GYMPro is gated by
+Deliberately NOT plan-gated. Every other feature in KriyaCore is gated by
 subscription tier because it's a product perk; these are a legal obligation
 the gym owes its members under the DPDP Act 2023 regardless of what they
 pay us. A Starter-tier gym that couldn't honour an erasure request would be
 non-compliant through our design choice, which isn't acceptable.
 
-Requests are staff-mediated: GYMPro has no member login yet, so a member
+Requests are staff-mediated: KriyaCore has no member login yet, so a member
 asks the gym (in person, by phone, by email) and staff record + fulfil it
 here. The DataRequest rows are the gym's evidence it responded.
 """
@@ -26,7 +26,7 @@ privacy_bp = Blueprint('privacy', __name__, url_prefix='/<string:gym_slug>/priva
 
 
 def build_member_export(member):
-    """Everything GYMPro holds about one member, as a portable dict.
+    """Everything KriyaCore holds about one member, as a portable dict.
 
     Deliberately includes the derived/behavioural data (attendance, message
     history) as well as the profile they gave us — 'personal data' under
@@ -53,7 +53,7 @@ def build_member_export(member):
                 'enrolled': bool(member.face_id_external_id),
                 'consented_at': member.face_id_consent_at.isoformat() if member.face_id_consent_at else None,
                 'note': ('Face images/templates are held by the gym\'s access-control device '
-                         'vendor, not by GYMPro. GYMPro stores only the device-assigned ID.'),
+                         'vendor, not by KriyaCore. KriyaCore stores only the device-assigned ID.'),
             },
             'whatsapp': {
                 'opted_in': member.whatsapp_opt_in,
@@ -136,6 +136,36 @@ def erase_member(member, actor_name):
     return label
 
 
+def _close_or_record(member, request_type, handled_by):
+    """Mark this member's pending request of this type fulfilled — and if
+    there wasn't one, write a row that is already complete.
+
+    The gym's evidence that it honoured a DPDP request has to exist whether
+    or not anyone remembered to log the ask first. In a two-person gym the
+    person who takes the request is the person who fulfils it a minute
+    later, so requiring a prior intake row would mean the common case leaves
+    no trace at all.
+    """
+    pending = DataRequest.query.filter_by(
+        gym_id=member.gym_id, member_id=member.id,
+        request_type=request_type, status='pending').all()
+
+    if not pending:
+        pending = [DataRequest(
+            gym_id=member.gym_id,
+            member_id=member.id,
+            member_name_snapshot=member.full_name,
+            request_type=request_type,
+            notes='Fulfilled directly from the member page.',
+        )]
+        db.session.add(pending[0])
+
+    for req in pending:
+        req.status          = 'completed'
+        req.completed_at    = datetime.utcnow()
+        req.handled_by_name = handled_by
+
+
 @privacy_bp.route('/')
 @login_required
 @role_required('super_admin')
@@ -186,7 +216,7 @@ def log_request(member_id):
 @login_required
 @role_required('super_admin')
 def export_member(member_id):
-    """Download everything GYMPro holds about this member as JSON — the
+    """Download everything KriyaCore holds about this member as JSON — the
     machine-readable, portable format DPDP's portability right implies."""
     member = Member.query.filter_by(id=member_id, gym_id=current_user.gym_id).first_or_404()
     if member.is_erased:
@@ -194,20 +224,14 @@ def export_member(member_id):
 
     payload = build_member_export(member)
 
-    # Mark any pending export request for this member as fulfilled
-    for req in DataRequest.query.filter_by(
-            gym_id=current_user.gym_id, member_id=member.id,
-            request_type='export', status='pending').all():
-        req.status = 'completed'
-        req.completed_at = datetime.utcnow()
-        req.handled_by_name = current_user.name
+    _close_or_record(member, 'export', current_user.name)
     db.session.commit()
 
     safe_name = ''.join(c for c in member.full_name if c.isalnum() or c in ' -_').replace(' ', '-')
     return Response(
         json.dumps(payload, indent=2, ensure_ascii=False),
         mimetype='application/json',
-        headers={'Content-Disposition': f'attachment; filename=gympro-data-{safe_name}-{member.id}.json'},
+        headers={'Content-Disposition': f'attachment; filename=kriyacore-data-{safe_name}-{member.id}.json'},
     )
 
 
@@ -229,14 +253,11 @@ def erase(member_id):
         return redirect(url_for('members.detail', member_id=member.id))
 
     original_name = member.full_name
-    erase_member(member, current_user.name)
 
-    for req in DataRequest.query.filter_by(
-            gym_id=current_user.gym_id, member_id=member.id,
-            request_type='erasure', status='pending').all():
-        req.status = 'completed'
-        req.completed_at = datetime.utcnow()
-        req.handled_by_name = current_user.name
+    # Log before scrubbing: member_name_snapshot is the only place the real
+    # name survives, and erase_member() is about to overwrite it.
+    _close_or_record(member, 'erasure', current_user.name)
+    erase_member(member, current_user.name)
     db.session.commit()
 
     flash(f'{original_name}\'s personal data has been erased. Billing records were kept, '
