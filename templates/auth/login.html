@@ -193,21 +193,6 @@
 
     </form>
 
-    {#  Development only. This printed the seeded admin's password on the
-        login page — harmless on a laptop, but the moment the app is on a
-        public URL (a tunnel, a staging box, the real domain) it hands the
-        credentials to anyone who loads the page. Gated on the same flag
-        that turns on secure cookies, so it disappears wherever it matters. #}
-    {% if not config.get('IS_PRODUCTION') %}
-    <div class="mt-8 pt-6 border-t border-gray-100 dark:border-slate-700">
-      <p class="text-xs text-center text-gray-400 dark:text-slate-500">
-        Default admin:
-        <code class="text-gray-600 dark:text-slate-400 font-mono">admin@kriyacore.com</code>
-        &nbsp;/&nbsp;
-        <code class="text-gray-600 dark:text-slate-400 font-mono">admin123</code>
-      </p>
-    </div>
-    {% endif %}
   </div>
 </div>
 

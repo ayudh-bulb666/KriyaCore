@@ -202,8 +202,7 @@ from the **operator panel**. That's the live path.
 
 **Do not run `flask seed` on a real instance.** It exists for demos and
 local work, and it creates the fictional PowerFit Mumbai with ten made-up
-members plus the well-known `admin@kriyacore.com` / `admin123` login that is
-public in this repo. Fine on a laptop, wrong on a server your clients use.
+members with generated passwords printed once to the terminal. Fine on a laptop, wrong on a server your clients use.
 
 On an **existing** database that predates migrations and already has its
 tables, don't run `upgrade` — tell Alembic the schema is already current,

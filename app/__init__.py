@@ -1,10 +1,12 @@
 import os
+import secrets
 
 import click
 import sentry_sdk
 from sentry_sdk.integrations.flask import FlaskIntegration
 
 from datetime import timedelta
+from pathlib import Path
 
 from flask import Flask, redirect, url_for, request, flash, session
 from flask_login import LoginManager, current_user
@@ -49,6 +51,45 @@ csrf = CSRFProtect()
 migrate = Migrate()
 
 
+def _load_secret_key(is_production):
+    """The key that signs session cookies. Never hardcoded.
+
+    There used to be a placeholder default here. It lived in a public repo,
+    which meant anyone who read the repo could forge a session cookie for any
+    user of any instance that hadn't overridden it. There is no safe value to
+    ship, so there is no default.
+
+    Production must supply SECRET_KEY and the app refuses to start without
+    it — a loud failure at boot beats finding out from an intrusion.
+
+    Development generates one on first run and keeps it in .secret_key.local
+    (git-ignored). Generating a fresh key each start would work but would
+    sign you out on every reload, so it's written down — just never committed.
+    """
+    key = os.environ.get('SECRET_KEY', '').strip()
+    if key:
+        return key
+
+    if is_production:
+        raise RuntimeError(
+            'SECRET_KEY is not set and FLASK_ENV=production.\n'
+            'It signs every session cookie, so there is no safe default.\n'
+            'Generate one and set it in the environment:\n'
+            '    python3 -c "import secrets; print(secrets.token_hex(32))"')
+
+    key_file = Path(__file__).resolve().parent.parent / '.secret_key.local'
+    if key_file.exists():
+        existing = key_file.read_text().strip()
+        if existing:
+            return existing
+
+    key = secrets.token_hex(32)
+    key_file.write_text(key)
+    key_file.chmod(0o600)
+    print(f'Generated a development SECRET_KEY in {key_file.name} (git-ignored).')
+    return key
+
+
 def create_app():
     # ── Error monitoring (Sentry) ────────────────────────────────────────────
     # Fully optional: with no SENTRY_DSN set, this block is skipped and the
@@ -79,20 +120,8 @@ def create_app():
     # bucket for all users, and secure-cookie / HTTPS detection breaks.
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
-    _DEV_SECRET = 'kriyacore-dev-secret-change-in-production'
     is_production = os.environ.get('FLASK_ENV') == 'production'
-
-    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', _DEV_SECRET)
-
-    # Refuse to run in production on the placeholder key. It sits in a public
-    # repo, and the session cookie is signed with it — anyone who reads the
-    # repo could forge a login as any user. Failing loudly at boot beats
-    # discovering this from an intrusion.
-    if is_production and app.config['SECRET_KEY'] == _DEV_SECRET:
-        raise RuntimeError(
-            'SECRET_KEY is still the development placeholder while FLASK_ENV=production. '
-            'Generate one and set it before starting:\n'
-            "    python3 -c \"import secrets; print(secrets.token_hex(32))\"")
+    app.config['SECRET_KEY'] = _load_secret_key(is_production)
 
     # ── Session cookie hardening ─────────────────────────────────────────────
     # SECURE requires HTTPS, so it's only forced on in production, where TLS
@@ -437,9 +466,13 @@ def _register_cli(app):
         if User.query.first():
             print('Already seeded; nothing to do.')
             return
-        _seed_data()
-        print('Seeded demo data. Sign in as admin@kriyacore.com / admin123 '
-              'and change that password.')
+        creds = _seed_data()
+        print('\nSeeded demo data. These passwords are generated fresh each')
+        print('time and shown ONCE — nothing is stored in the repo.\n')
+        width = max(len(e) for e in creds)
+        for email, pw in creds.items():
+            print(f'  {email:<{width}}  {pw}')
+        print('\nDemo data only. On a real instance use "flask create-admin".\n')
 
     @app.cli.command('create-admin')
     @click.option('--email', prompt='Platform admin email')
@@ -477,20 +510,34 @@ def _register_cli(app):
 
 
 def _seed_data():
-    """Seed the database with initial data on first run."""
+    """Seed the database with demo data. Returns {email: password}.
+
+    Passwords are generated fresh each time and returned to the caller to
+    print once. They used to be literals — 'admin123' and friends — which
+    meant the credentials for every KriyaCore instance were published in a
+    public repo. Random ones cost nothing and remove the whole class of
+    problem: even a demo instance someone leaves exposed isn't walk-in-able.
+    """
     from werkzeug.security import generate_password_hash
     from datetime import date, timedelta
 
     if User.query.first():
-        return  # Already seeded
+        return {}
 
     _hash = lambda p: generate_password_hash(p, method='pbkdf2:sha256')
+
+    def _demo_password():
+        # Readable enough to retype from a terminal, random enough that
+        # knowing this source tells you nothing about any instance.
+        return secrets.token_urlsafe(12)
+
+    creds = {}
 
     # ── Platform Admin (no gym) ────────────────────────────────────────────────
     platform_admin = User(
         name='Platform Admin',
         email='platform@kriyacore.com',
-        password_hash=_hash('platform123'),
+        password_hash=_hash(creds.setdefault('platform@kriyacore.com', _demo_password())),
         role='platform_admin',
         gym_id=None,
     )
@@ -512,21 +559,21 @@ def _seed_data():
     admin = User(
         name='Admin User',
         email='admin@kriyacore.com',
-        password_hash=_hash('admin123'),
+        password_hash=_hash(creds.setdefault('admin@kriyacore.com', _demo_password())),
         role='super_admin',
         gym_id=gym.id,
     )
     trainer1 = User(
         name='Raj Malhotra',
         email='raj@kriyacore.com',
-        password_hash=_hash('staff123'),
+        password_hash=_hash(creds.setdefault('raj@kriyacore.com', _demo_password())),
         role='staff',
         gym_id=gym.id,
     )
     trainer2 = User(
         name='Divya Krishnan',
         email='divya@kriyacore.com',
-        password_hash=_hash('staff123'),
+        password_hash=_hash(creds.setdefault('divya@kriyacore.com', _demo_password())),
         role='staff',
         gym_id=gym.id,
     )
@@ -601,3 +648,4 @@ def _seed_data():
         db.session.add(mem)
 
     db.session.commit()
+    return creds

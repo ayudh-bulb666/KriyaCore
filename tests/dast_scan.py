@@ -12,6 +12,7 @@ values that must be rejected, and the test asserts they were.
 Usage:
     python3 tests/dast_scan.py [base_url]
 """
+import os
 import re
 import sys
 import json
@@ -20,6 +21,14 @@ import urllib.parse
 import requests
 
 BASE = (sys.argv[1] if len(sys.argv) > 1 else 'http://127.0.0.1:5001').rstrip('/')
+
+# Credentials come from the environment. Hardcoding them would republish
+# working logins in a public repo — the exact problem this scan exists to
+# catch elsewhere.
+#     export KC_OWNER_PASSWORD=...  KC_STAFF_EMAIL=...  KC_STAFF_PASSWORD=...
+OWNER_PASSWORD = os.environ.get('KC_OWNER_PASSWORD', '')
+STAFF_EMAIL    = os.environ.get('KC_STAFF_EMAIL', '')
+STAFF_PASSWORD = os.environ.get('KC_STAFF_PASSWORD', '')
 
 # Populated from the live database by main(); see load_fixtures().
 FIX = {}
@@ -408,10 +417,15 @@ def main():
     print(f'  gym A = {a["slug"]} (owner {a["owner_email"]})')
     print(f'  gym B = {b["slug"]} (owner {b["owner_email"]})\n')
 
-    sess_a = login(a['owner_email'], 'admin123')
+    if not OWNER_PASSWORD:
+        raise SystemExit(
+            'Set KC_OWNER_PASSWORD (and optionally KC_STAFF_EMAIL / '
+            'KC_STAFF_PASSWORD) before running the scan.')
+
+    sess_a = login(a['owner_email'], OWNER_PASSWORD)
     if sess_a is None:
         raise SystemExit(f'Could not log in as {a["owner_email"]} — check the password.')
-    sess_staff = login('raj@kriyacore.com', 'staff123')
+    sess_staff = login(STAFF_EMAIL, STAFF_PASSWORD) if STAFF_PASSWORD else None
 
     print('── Tenant isolation ──────────────────────────────────────')
     test_tenant_isolation(sess_a)
