@@ -10,9 +10,16 @@ services:
   - type: web
     name: kriyacore
     runtime: python
-    plan: starter          # $7/mo. The free plan sleeps after 15 minutes idle,
-                           # which means a 30–60s cold start every time the
-                           # front desk opens the app after a quiet spell.
+    # Free while testing. Switch to `starter` ($7/mo) before the gyms use it:
+    # a free service sleeps after 15 minutes idle, so the first visit after a
+    # quiet spell waits 30–60 seconds for it to wake. A gym is used in bursts
+    # — morning rush, evening rush, nothing between — so the front desk would
+    # meet that cold start most times they opened the app, and conclude the
+    # software is broken.
+    #
+    # Changing it is a dropdown in the Render dashboard: no redeploy, no data
+    # loss, takes effect immediately.
+    plan: free
 
     # Singapore is Render's only region anywhere near India (~100–150ms).
     # Put the Supabase project in Singapore too — see SETUP.md for why
@@ -20,12 +27,21 @@ services:
     # having both a little further away.
     region: singapore
 
-    buildCommand: pip install -r requirements.txt
-
-    # Runs after the build, before the new version takes traffic. Migrations
-    # belong here rather than in the start command: the start command runs on
-    # every restart and every scaled instance, so schema changes would race.
-    preDeployCommand: flask db upgrade
+    # Migrations run here, at the end of the build.
+    #
+    # The natural home for them is `preDeployCommand`, but that is a paid-plan
+    # feature — on the free plan Render simply never runs it, so the tables
+    # would never be created and every page would 500 against an empty
+    # database. Putting them in buildCommand works on both plans.
+    #
+    # Not in the start command: that runs on every restart and every scaled
+    # instance, so schema changes would race each other.
+    #
+    # `flask db upgrade` only applies migrations the database hasn't seen, so
+    # running it on every deploy is a no-op once it's current.
+    buildCommand: |
+      pip install -r requirements.txt
+      flask db upgrade
 
     # One worker on purpose. Flask-Limiter keeps rate-limit counters in
     # memory, so a second worker would get its own counters and the login
