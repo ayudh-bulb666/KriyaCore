@@ -356,9 +356,23 @@ read the four gotchas at the end before you rely on it.
    is half a second of pure latency added to one page load. Co-locating both
    in Singapore is materially faster than splitting them.
 3. Save the database password somewhere safe. Supabase shows it once.
-4. Settings → Database → **Connection pooling** → copy the **session mode**
-   URI (port `5432`). Use the pooler URI, not the direct one: the direct
-   connection is IPv6-only on newer projects and Render will not reach it.
+4. Click the **Connect** button at the top of the dashboard (next to the
+   project name — not under Settings, which is where it used to live).
+   Pick **Session pooler**:
+
+   ```
+   postgres://postgres.<ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+
+   - Replace `[YOUR-PASSWORD]` with the database password from step 3. It is
+     a literal placeholder, not the real value.
+   - The port must be **5432**. If the modal offers the pooler on `6543`,
+     that is transaction mode — change the port to `5432` and it becomes
+     session mode; everything else stays the same.
+   - Use the pooler, never the "Direct connection" option: that one is
+     IPv6-only on newer projects and Render cannot reach it.
+
+   The `postgres://` scheme is fine — the app rewrites it to `postgresql://`.
 
 ### 2. Render — deploy the app
 
