@@ -30,9 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # pg_dump refuses to dump from a server NEWER than itself, so this major
-      # version must be >= the database's. Supabase is on PostgreSQL 17.6;
-      # a client-16 here fails outright with "aborting because of server
-      # version mismatch". If Supabase ever moves to 18, bump this too.
+      # version must be >= the database's. Supabase is on PostgreSQL 17.6.
+      # If Supabase ever moves to 18, bump the version in BOTH places below.
       - name: Install a matching pg_dump
         run: |
           sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt \
@@ -41,7 +40,12 @@ jobs:
             | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          # Installing 17 is not enough on its own. /usr/bin/pg_dump is
+          # Debian's pg_wrapper, which resolves to the runner image's default
+          # cluster — still 16 even once 17 is installed, which fails with
+          # "server version mismatch" and looks like the install didn't work.
+          # Call the versioned binary directly so the choice is ours.
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Dump, compress and encrypt
         env:
@@ -54,7 +58,8 @@ jobs:
 
           # --no-owner / --no-acl so the dump restores onto a different host
           # with different role names — which is the whole point of having it.
-          pg_dump "$DATABASE_URL" --no-owner --no-acl --clean --if-exists \
+          /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" \
+            --no-owner --no-acl --clean --if-exists \
             | gzip -9 \
             | gpg --batch --yes --symmetric --cipher-algo AES256 \
                   --passphrase "$BACKUP_PASSPHRASE" \
