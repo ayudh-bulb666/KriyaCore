@@ -31,6 +31,14 @@ fi
 unset FLASK_ENV
 export FLASK_APP=run.py
 
+# Quieten three warnings that always appear and never matter here:
+#   - Flask offering to load .env (we already sourced it in bash)
+#   - urllib3 noting macOS ships LibreSSL, not OpenSSL (psycopg2 doesn't use it)
+#   - Flask-Limiter noting in-memory rate limits (correct for one worker)
+# Scoped to this wrapper only — the app still shows its warnings normally.
+# Six lines of noise around a password prompt makes a real error easy to miss.
+export PYTHONWARNINGS=ignore
+
 # Preflight: prove we can reach the database before dropping the user into
 # password prompts. Without this, a momentary DNS hiccup surfaces as sixty
 # lines of SQLAlchemy traceback *after* they have typed everything in.
@@ -75,4 +83,4 @@ echo "Password must be at least 10 characters and cannot contain your name"
 echo "or email address. A phrase like 'harbour-mango-lantern' works well."
 echo
 
-exec python3 -m flask create-admin
+exec python3 -m flask create-admin 2> >(grep -v 'python-dotenv' >&2)
