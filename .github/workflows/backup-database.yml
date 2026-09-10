@@ -29,6 +29,10 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
+      # pg_dump refuses to dump from a server NEWER than itself, so this major
+      # version must be >= the database's. Supabase is on PostgreSQL 17.6;
+      # a client-16 here fails outright with "aborting because of server
+      # version mismatch". If Supabase ever moves to 18, bump this too.
       - name: Install a matching pg_dump
         run: |
           sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt \
@@ -36,7 +40,8 @@ jobs:
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
             | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-16
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
 
       - name: Dump, compress and encrypt
         env:
