@@ -17,10 +17,13 @@ from flask_wtf.csrf import CSRFError
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from .helpers import validate_password
 from .models import db, User, Gym, Member, MembershipPlan, MemberMembership
 from .plans import PLANS, FEATURE_ROUTES, plan_has
 
 login_manager = LoginManager()
+
+
 def _rate_limit_key():
     """Rate-limit per user when we know who they are, per IP otherwise.
 
@@ -475,9 +478,11 @@ def _register_cli(app):
         print('\nDemo data only. On a real instance use "flask create-admin".\n')
 
     @app.cli.command('create-admin')
-    @click.option('--email', prompt='Platform admin email')
-    @click.option('--name', default='Platform Admin', help='Display name.')
-    @click.password_option(help='At least 8 characters.')
+    @click.option('--email', prompt='Your email')
+    @click.option('--name', prompt='Your name', default='Platform Admin',
+                  help='Shown in the app and on audit-log entries.')
+    @click.password_option(
+        help='At least 10 characters; cannot contain your name or email.')
     def create_admin_command(email, name, password):
         """Create a platform admin on an otherwise empty database.
 
