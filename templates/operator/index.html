@@ -217,11 +217,11 @@
           <td class="px-4 py-3.5">
             <div class="flex items-center justify-end gap-1.5 flex-wrap">
               <a href="{{ url_for('operator.gym_detail', gym_id=gym.id) }}"
-                 class="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors">
+                 class="px-2.5 py-1.5 min-h-[32px] items-center text-xs font-medium bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-600 dark:text-slate-300 rounded-lg transition-colors">
                 View
               </a>
               <a href="{{ url_for('operator.edit_gym', gym_id=gym.id) }}"
-                 class="px-2.5 py-1 text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors">
+                 class="px-2.5 py-1.5 min-h-[32px] items-center text-xs font-medium bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 rounded-lg transition-colors">
                 Branding
               </a>
               {% if gym.is_active and gym.admin %}
@@ -229,7 +229,7 @@
                     onsubmit="return confirm('Log in as {{ gym.name }}?')">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
-                        class="px-2.5 py-1 text-xs font-medium bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg transition-colors border border-amber-200 dark:border-amber-800">
+                        class="px-2.5 py-1.5 min-h-[32px] items-center text-xs font-medium bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg transition-colors border border-amber-200 dark:border-amber-800">
                   👁 Log in as
                 </button>
               </form>
@@ -238,7 +238,7 @@
                     onsubmit="return confirm('{% if gym.is_active %}Suspend{% else %}Activate{% endif %} {{ gym.name }}?')">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit"
-                        class="px-2.5 py-1 text-xs font-medium rounded-lg transition-colors
+                        class="px-2.5 py-1.5 min-h-[32px] items-center text-xs font-medium rounded-lg transition-colors
                           {% if gym.is_active %}bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400
                           {% else %}bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400{% endif %}">
                   {{ 'Suspend' if gym.is_active else 'Activate' }}

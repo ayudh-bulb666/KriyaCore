@@ -20,3 +20,6 @@ instance/
 # Bridge: local venv and the offline scan queue
 bridge/venv/
 bridge/*.db
+
+# Local preview helper: serves instance/demo.db instead of the real database
+run_demo.py

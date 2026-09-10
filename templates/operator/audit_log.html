@@ -126,8 +126,11 @@
 
           <!-- Detail -->
           <td class="px-4 py-3.5 max-w-xs">
+            {# Wraps instead of truncating. `truncate` hid the end of every
+               longer entry — and on a phone, where `title` tooltips do not
+               exist, a cut-off audit detail simply cannot be read. #}
             {% if log.detail %}
-            <p class="type-p3 text-gray-500 dark:text-slate-400 truncate" title="{{ log.detail }}">
+            <p class="type-p3 text-gray-500 dark:text-slate-400 break-words" title="{{ log.detail }}">
               {{ log.detail }}
             </p>
             {% else %}
