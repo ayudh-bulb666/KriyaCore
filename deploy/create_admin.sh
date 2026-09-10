@@ -39,41 +39,61 @@ export FLASK_APP=run.py
 # Six lines of noise around a password prompt makes a real error easy to miss.
 export PYTHONWARNINGS=ignore
 
-# Preflight: prove we can reach the database before dropping the user into
-# password prompts. Without this, a momentary DNS hiccup surfaces as sixty
-# lines of SQLAlchemy traceback *after* they have typed everything in.
-python3 - <<'PREFLIGHT' || exit 1
+# Resolve the database host once, then pin the address for the actual
+# command. Two reasons:
+#
+#   1. It proves the database is reachable before the user types a password.
+#      Without it, a DNS hiccup produces sixty lines of SQLAlchemy traceback
+#      *after* they have entered everything.
+#   2. It takes DNS out of the connect path. The Supabase pooler sits behind
+#      a load balancer with rotating addresses, and this machine's resolver
+#      drops a lookup now and then — twice during setup, both times mid-
+#      command. libpq's `hostaddr` lets us supply the IP while keeping the
+#      hostname for TLS SNI and certificate verification, so the connection
+#      is still fully verified.
+PINNED=$(python3 - <<'PREFLIGHT'
 import os, socket, sys, time
 from urllib.parse import urlsplit
 url = os.environ['DATABASE_URL']
 host = urlsplit(url).hostname
 
-# The pooler is behind a load balancer whose addresses rotate, and macOS's
-# resolver drops one now and again. Retry before believing it.
+ip = None
 for attempt in range(1, 6):
     try:
-        socket.getaddrinfo(host, 5432, proto=socket.IPPROTO_TCP)
+        ip = socket.getaddrinfo(host, 5432, socket.AF_INET,
+                                proto=socket.IPPROTO_TCP)[0][4][0]
         break
     except socket.gaierror:
-        if attempt == 5:
-            print(f"\n  Cannot resolve {host} after 5 tries.")
-            print("  Check your internet connection, then run this again.\n")
-            sys.exit(1)
         time.sleep(2)
+
+if ip is None:
+    print(f"ERROR|Cannot resolve {host} after 5 tries. Check your connection.")
+    sys.exit(1)
+
+pinned = url + ('&' if '?' in url else '?') + f'hostaddr={ip}'
 
 try:
     import psycopg2
-    psycopg2.connect(url, connect_timeout=20).close()
+    psycopg2.connect(pinned, connect_timeout=20).close()
 except Exception as exc:
     first = str(exc).strip().splitlines()[0] if str(exc).strip() else repr(exc)
-    print(f"\n  Could not connect: {first}")
-    if "password authentication" in first:
-        print("  The password in .env is wrong. Re-run: python3 deploy/set_database_url.py")
-    elif "translate host name" in first:
-        print("  DNS problem. Check your connection and try again.")
-    print()
+    hint = ''
+    if 'password authentication' in first:
+        hint = ' Re-run: python3 deploy/set_database_url.py'
+    print(f"ERROR|Could not connect: {first}{hint}")
     sys.exit(1)
+
+print(pinned)
 PREFLIGHT
+) || true
+
+if [ -z "$PINNED" ] || [[ "$PINNED" == ERROR\|* ]]; then
+    echo
+    echo "  ${PINNED#ERROR|}"
+    echo
+    exit 1
+fi
+export DATABASE_URL="$PINNED"
 
 echo
 echo "Creating an admin account on:"
