@@ -234,6 +234,7 @@ def create_app():
     from .privacy       import privacy_bp
     from .expenses      import expenses_bp
     from .cron          import cron_bp
+    from .health        import health_bp
 
     # Gym-facing blueprints are mounted under '/<gym_slug>/...' so each gym
     # gets its own branded URL (e.g. kriyacore.app/powerfit-mumbai/dashboard).
@@ -271,6 +272,12 @@ def create_app():
     # as faceid_bp above. Auth is CRON_SECRET via header (see app/cron.py).
     app.register_blueprint(cron_bp)
     csrf.exempt(cron_bp)
+
+    # Polled by an uptime monitor every few minutes. Exempt from the global
+    # rate limit so a short check interval can never produce a 429 and be
+    # reported as an outage — see app/health.py.
+    app.register_blueprint(health_bp)
+    limiter.exempt(health_bp)
 
     # Expose Python builtins to all templates
     app.jinja_env.globals.update(zip=zip, enumerate=enumerate)
