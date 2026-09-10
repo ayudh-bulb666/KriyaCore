@@ -1,0 +1,39 @@
+{# Shared pager for the operator list screens.
+
+   Every link carries the current query string forward (minus `page`), so
+   paging never silently drops the filter or search term you were looking at.
+#}
+{% macro pager(pagination, endpoint) %}
+  {% if pagination and pagination.pages > 1 %}
+    {% set args = request.args.to_dict() %}
+    {% set _ = args.pop('page', None) %}
+    <div class="flex items-center justify-between px-5 py-3 border-t border-gray-100 dark:border-slate-700">
+      <p class="type-p3 text-gray-500 dark:text-slate-400">
+        {{ pagination.first }}–{{ pagination.last }} of {{ pagination.total }}
+      </p>
+      <div class="flex items-center gap-1">
+        {% if pagination.has_prev %}
+          <a href="{{ url_for(endpoint, page=pagination.prev_num, **args) }}"
+             class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            Previous
+          </a>
+        {% else %}
+          <span class="px-3 py-1.5 text-sm text-gray-300 dark:text-slate-600">Previous</span>
+        {% endif %}
+
+        <span class="px-3 py-1.5 type-p3 text-gray-500 dark:text-slate-400">
+          Page {{ pagination.page }} of {{ pagination.pages }}
+        </span>
+
+        {% if pagination.has_next %}
+          <a href="{{ url_for(endpoint, page=pagination.next_num, **args) }}"
+             class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+            Next
+          </a>
+        {% else %}
+          <span class="px-3 py-1.5 text-sm text-gray-300 dark:text-slate-600">Next</span>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+{% endmacro %}

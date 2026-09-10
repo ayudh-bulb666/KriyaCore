@@ -1,0 +1,119 @@
+{% extends 'operator/base.html' %}
+{% from 'operator/_pagination.html' import pager %}
+{% block title %}Find a member{% endblock %}
+
+{% block content %}
+
+<div class="mb-6">
+  <h1 class="type-h1 text-gray-900 dark:text-white">Find a member</h1>
+  <p class="type-p2 text-gray-400 dark:text-slate-500 mt-0.5">
+    Searches name, phone and email across every gym
+  </p>
+</div>
+
+<!-- ── Search box ───────────────────────────────────────────────────────────── -->
+<form method="GET" action="{{ url_for('operator.search') }}" class="mb-5">
+  <div class="flex gap-2">
+    <input type="search" name="q" value="{{ q }}" autofocus
+           placeholder="Name, phone number or email address"
+           class="flex-1 px-4 py-2.5 border border-gray-200 dark:border-slate-600 rounded-xl text-sm
+                  bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                  placeholder-gray-400 dark:placeholder-slate-500
+                  focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-transparent" />
+    <button type="submit"
+            class="px-5 py-2.5 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors">
+      Search
+    </button>
+  </div>
+</form>
+
+{% if too_short %}
+  <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900/40 rounded-xl px-4 py-3 mb-5">
+    <p class="text-sm text-amber-800 dark:text-amber-300">
+      Type at least {{ min_search }} characters. A shorter search would match most
+      of the estate, which isn't a search — it's an export.
+    </p>
+  </div>
+{% endif %}
+
+{% if pagination is not none %}
+  {% if not members %}
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-10 text-center">
+      <p class="text-gray-900 dark:text-white font-semibold">No match for “{{ q }}”</p>
+      <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">
+        Try part of a surname, or the last few digits of a phone number.
+      </p>
+    </div>
+  {% else %}
+    <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div class="px-5 py-3 border-b border-gray-100 dark:border-slate-700">
+        <p class="type-p3 text-gray-500 dark:text-slate-400">
+          {{ pagination.total }} match{{ '' if pagination.total == 1 else 'es' }} for “{{ q }}”
+        </p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700">
+              <th class="px-5 py-3 font-medium">Member</th>
+              <th class="px-3 py-3 font-medium">Gym</th>
+              <th class="px-3 py-3 font-medium">Contact</th>
+              <th class="px-3 py-3 font-medium">Joined</th>
+              <th class="px-5 py-3 font-medium">Membership</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50 dark:divide-slate-700/60">
+            {% for m in members %}
+            {% set state, message = m.membership_state %}
+            <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
+              <td class="px-5 py-3">
+                <span class="font-medium text-gray-900 dark:text-white">{{ m.first_name }} {{ m.last_name }}</span>
+                {% if m.status != 'active' %}
+                  <span class="ml-1.5 text-xs text-gray-400 dark:text-slate-500">{{ m.status }}</span>
+                {% endif %}
+              </td>
+              <td class="px-3 py-3">
+                <a href="{{ url_for('operator.gym_detail', gym_id=m.gym_id) }}"
+                   class="text-gray-600 dark:text-slate-300 hover:underline">
+                  {{ gym_names.get(m.gym_id, '—') }}
+                </a>
+              </td>
+              <td class="px-3 py-3 text-gray-600 dark:text-slate-300">
+                {{ m.phone or '—' }}
+                {% if m.email %}<span class="block type-p3 text-gray-400 dark:text-slate-500">{{ m.email }}</span>{% endif %}
+              </td>
+              <td class="px-3 py-3 text-gray-600 dark:text-slate-300">{{ m.joining_date.strftime('%d %b %Y') }}</td>
+              <td class="px-5 py-3">
+                {% if state == 'active' %}
+                  <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-semibold bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">Active</span>
+                {% elif state == 'expiring' %}
+                  <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Expiring</span>
+                {% elif state == 'expired' %}
+                  <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">Expired</span>
+                {% else %}
+                  <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">No plan</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {{ pager(pagination, 'operator.search') }}
+    </div>
+  {% endif %}
+{% elif not too_short %}
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-10 text-center">
+    <p class="text-gray-900 dark:text-white font-semibold">Search across every gym</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+      Useful when a member calls and you don't know which gym they belong to.
+    </p>
+  </div>
+{% endif %}
+
+<p class="type-p3 text-gray-400 dark:text-slate-500 mt-4">
+  Read-only, and every search is written to the audit log with the term used
+  and the number of matches.
+</p>
+
+{% endblock %}

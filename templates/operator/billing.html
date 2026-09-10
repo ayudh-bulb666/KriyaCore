@@ -1,0 +1,158 @@
+{% extends 'operator/base.html' %}
+{% from 'operator/_pagination.html' import pager %}
+{% block title %}Billing{% endblock %}
+
+{% macro money(value) -%}₹{{ value|inr }}{%- endmacro %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="type-h1 text-gray-900 dark:text-white">Billing</h1>
+    <p class="type-p2 text-gray-400 dark:text-slate-500 mt-0.5">
+      Every membership across {{ gyms | length }} gym{{ '' if gyms | length == 1 else 's' }}
+    </p>
+  </div>
+  <a href="{{ url_for('operator.billing_export', **request.args) }}"
+     class="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    Export CSV
+  </a>
+</div>
+
+<!-- ── Date range ───────────────────────────────────────────────────────────── -->
+<form method="GET" action="{{ url_for('operator.billing') }}"
+      class="flex flex-wrap items-end gap-2 mb-4">
+  {# Carry the current tab and gym through, so setting a date doesn't reset them. #}
+  <input type="hidden" name="status" value="{{ status_filter }}" />
+  {% if gym_filter %}<input type="hidden" name="gym" value="{{ gym_filter }}" />{% endif %}
+
+  <div>
+    <label for="from" class="block type-p3 text-gray-400 dark:text-slate-500 mb-1">Ending from</label>
+    <input type="date" id="from" name="from" value="{{ date_from.isoformat() if date_from else '' }}"
+           class="px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl text-sm
+                  bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                  focus:outline-none focus:ring-2 focus:ring-green-600" />
+  </div>
+  <div>
+    <label for="to" class="block type-p3 text-gray-400 dark:text-slate-500 mb-1">Ending to</label>
+    <input type="date" id="to" name="to" value="{{ date_to.isoformat() if date_to else '' }}"
+           class="px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl text-sm
+                  bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                  focus:outline-none focus:ring-2 focus:ring-green-600" />
+  </div>
+  <button type="submit"
+          class="px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors">
+    Apply
+  </button>
+  {% if date_from or date_to %}
+    <a href="{{ url_for('operator.billing', status=status_filter, gym=gym_filter) }}"
+       class="px-3 py-2 text-sm font-medium text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+      Clear dates
+    </a>
+  {% endif %}
+</form>
+
+<!-- ── Filters ──────────────────────────────────────────────────────────────── -->
+<div class="flex flex-wrap items-center gap-2 mb-4">
+  {% for key, label in tabs %}
+    <a href="{{ url_for('operator.billing', status=key, gym=gym_filter) }}"
+       class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if status_filter == key %}bg-green-700 text-white
+              {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+      {{ label }}
+      <span class="ml-1 {{ 'text-green-200' if status_filter == key else 'text-gray-400 dark:text-slate-500' }}">{{ counts[key] }}</span>
+    </a>
+  {% endfor %}
+
+  <span class="mx-1 h-5 w-px bg-gray-200 dark:bg-slate-700"></span>
+
+  <a href="{{ url_for('operator.billing', status=status_filter) }}"
+     class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+            {% if not gym_filter %}bg-gray-900 dark:bg-slate-200 text-white dark:text-slate-900
+            {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+    All gyms
+  </a>
+  {% for g in gyms %}
+    <a href="{{ url_for('operator.billing', status=status_filter, gym=g.id) }}"
+       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
+              {% if gym_filter == g.id %}bg-gray-900 dark:bg-slate-200 text-white dark:text-slate-900
+              {% else %}bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-700{% endif %}">
+      <span class="w-2 h-2 rounded-full" style="background: {{ g.primary_color or '#166534' }}"></span>
+      {{ g.name }}
+    </a>
+  {% endfor %}
+</div>
+
+<!-- ── Table ────────────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+  {% if not memberships %}
+    <div class="p-10 text-center">
+      <p class="text-gray-900 dark:text-white font-semibold">Nothing here</p>
+      <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">
+        No memberships match this filter.
+      </p>
+    </div>
+  {% else %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700">
+          <th class="px-5 py-3 font-medium">Member</th>
+          <th class="px-3 py-3 font-medium">Gym</th>
+          <th class="px-3 py-3 font-medium">Plan</th>
+          <th class="px-3 py-3 font-medium">Period</th>
+          <th class="px-3 py-3 font-medium text-right">Amount</th>
+          <th class="px-5 py-3 font-medium text-right">Payment</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700/60">
+        {% for m in memberships %}
+        {% set days = (m.end_date - today).days %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
+          <td class="px-5 py-3">
+            <span class="font-medium text-gray-900 dark:text-white">
+              {{ m.member.first_name }} {{ m.member.last_name }}
+            </span>
+            {% if m.member.phone %}
+              <span class="block type-p3 text-gray-400 dark:text-slate-500">{{ m.member.phone }}</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-3 text-gray-600 dark:text-slate-300">{{ gym_names.get(m.gym_id, '—') }}</td>
+          <td class="px-3 py-3 text-gray-600 dark:text-slate-300">{{ m.plan.name if m.plan else '—' }}</td>
+          <td class="px-3 py-3 text-gray-600 dark:text-slate-300">
+            {{ m.start_date.strftime('%d %b %Y') }} → {{ m.end_date.strftime('%d %b %Y') }}
+            {% if m.status == 'active' and 0 <= days <= 7 %}
+              <span class="block type-p3 text-red-500 font-medium">expires in {{ days }} day{{ '' if days == 1 else 's' }}</span>
+            {% elif m.end_date < today %}
+              <span class="block type-p3 text-gray-400 dark:text-slate-500">ended</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums text-gray-900 dark:text-white font-medium">{{ money(m.amount) }}</td>
+          <td class="px-5 py-3 text-right">
+            {% if m.payment_status == 'paid' %}
+              <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-semibold bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">Paid</span>
+            {% elif m.payment_status == 'overdue' %}
+              <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-semibold bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">Overdue</span>
+            {% else %}
+              <span class="inline-flex px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">Pending</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ pager(pagination, 'operator.billing') }}
+  {% endif %}
+</div>
+
+<p class="type-p3 text-gray-400 dark:text-slate-500 mt-4">
+  Read-only. To record a payment or renew a membership, open the gym itself —
+  changes made there are attributed to that gym in the audit log.
+</p>
+
+{% endblock %}

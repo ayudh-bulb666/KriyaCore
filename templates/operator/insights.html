@@ -1,0 +1,275 @@
+{% extends 'operator/base.html' %}
+{% block title %}Insights{% endblock %}
+
+{#
+  Estate-wide analytics. Aggregates only — no member names, phone numbers or
+  email addresses appear anywhere on this page. See operator.insights() for
+  why. Sorting is done server-side via ?sort= and ?dir=, so the table is
+  right with JavaScript off.
+#}
+
+{% macro money(value) -%}
+₹{{ value|inr }}
+{%- endmacro %}
+
+{% macro sort_link(key, label, numeric=True) -%}
+  {% set is_current = (sort_key == key) %}
+  {# Clicking the current column flips direction; a new column starts on the
+     order that column is usually read in — biggest first for numbers, A-Z
+     for names. #}
+  {% set next_dir = ('asc' if (is_current and sort_dir == 'desc') else 'desc') %}
+  {% if not is_current and not numeric %}{% set next_dir = 'asc' %}{% endif %}
+  <a href="{{ url_for('operator.insights', sort=key, dir=next_dir) }}"
+     class="inline-flex items-center gap-1 py-2 -my-2 hover:text-gray-900 dark:hover:text-white transition-colors
+            {% if is_current %}text-gray-900 dark:text-white font-semibold{% endif %}">
+    {{ label }}
+    {% if is_current %}
+      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+              d="{{ 'M19 9l-7 7-7-7' if sort_dir == 'desc' else 'M5 15l7-7 7 7' }}"/>
+      </svg>
+    {% endif %}
+  </a>
+{%- endmacro %}
+
+{% block content %}
+
+<!-- ── Page header ──────────────────────────────────────────────────────────── -->
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="type-h1 text-gray-900 dark:text-white">Insights</h1>
+    <p class="type-p2 text-gray-400 dark:text-slate-500 mt-0.5">
+      Across {{ totals.gyms }} gym{{ '' if totals.gyms == 1 else 's' }} · {{ today.strftime('%A, %d %B %Y') }}
+    </p>
+  </div>
+  <div class="flex items-center gap-2">
+  <a href="{{ url_for('operator.insights_export', **request.args) }}"
+     class="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    Export CSV
+  </a>
+  </div>
+</div>
+
+{% if not rows %}
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-10 text-center">
+    <p class="text-gray-900 dark:text-white font-semibold">No gyms yet</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">
+      Insights fill in once a gym exists and starts taking payments.
+    </p>
+    <a href="{{ url_for('operator.new_gym') }}"
+       class="inline-flex items-center gap-2 mt-5 px-4 py-2 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold rounded-xl transition-colors">
+      Add the first gym
+    </a>
+  </div>
+{% else %}
+
+<!-- ── Estate KPIs ──────────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Revenue this month</p>
+    <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mt-1">{{ money(totals.revenue_month) }}</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">across all gyms</p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Outstanding</p>
+    <p class="text-2xl sm:text-3xl font-extrabold {{ 'text-amber-600 dark:text-amber-400' if totals.outstanding else 'text-gray-900 dark:text-white' }} mt-1">
+      {{ money(totals.outstanding) }}
+    </p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      {{ totals.outstanding_n }} unpaid membership{{ '' if totals.outstanding_n == 1 else 's' }}
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Active members</p>
+    <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mt-1">{{ totals.members_active }}</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      <span class="text-green-600 dark:text-green-400 font-medium">+{{ totals.new_this_month }}</span> joined this month
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Expiring in 7 days</p>
+    <p class="text-2xl sm:text-3xl font-extrabold {{ 'text-red-600 dark:text-red-400' if totals.expiring else 'text-gray-900 dark:text-white' }} mt-1">
+      {{ totals.expiring }}
+    </p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      {{ totals.lapsed }} lapsed · {{ totals.visits_7d }} visits in 7 days
+    </p>
+  </div>
+
+</div>
+
+<!-- ── Revenue trend ────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-4">
+    <h2 class="type-h2 text-gray-900 dark:text-white">Revenue, last {{ months }} months</h2>
+    <p class="type-p3 text-gray-400 dark:text-slate-500">by date payment received</p>
+  </div>
+  <div class="h-72">
+    <canvas id="revenueTrend"></canvas>
+  </div>
+</div>
+
+<!-- ── Gym comparison ───────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+    <h2 class="type-h2 text-gray-900 dark:text-white">Gym comparison</h2>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-0.5">Click a column to sort</p>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700">
+          <th class="px-5 py-3 font-medium">{{ sort_link('name', 'Gym', numeric=False) }}</th>
+          <th class="px-3 py-3 font-medium text-right">{{ sort_link('members_active', 'Active') }}</th>
+          <th class="px-3 py-3 font-medium text-right">{{ sort_link('new_this_month', 'New') }}</th>
+          <th class="px-3 py-3 font-medium text-right">{{ sort_link('lapsed_pct', 'Lapsed') }}</th>
+          <th class="px-3 py-3 font-medium text-right">{{ sort_link('revenue_month', 'Revenue MTD') }}</th>
+          <th class="px-3 py-3 font-medium text-right">{{ sort_link('outstanding', 'Outstanding') }}</th>
+          <th class="px-5 py-3 font-medium text-right">{{ sort_link('visits_7d', 'Visits 7d') }}</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700/60">
+        {% for r in rows %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors {{ 'opacity-50' if not r.gym.is_active }}">
+          <td class="px-5 py-3">
+            <a href="{{ url_for('operator.gym_detail', gym_id=r.gym.id) }}"
+               class="flex items-center gap-2.5 group">
+              <span class="w-2.5 h-2.5 rounded-full flex-none"
+                    style="background: {{ r.gym.primary_color or '#166534' }}"></span>
+              <span>
+                <span class="font-semibold text-gray-900 dark:text-white group-hover:underline">{{ r.gym.name }}</span>
+                {% if not r.gym.is_active %}
+                  <span class="ml-1.5 text-xs text-red-500 font-medium">suspended</span>
+                {% endif %}
+                <span class="block type-p3 text-gray-400 dark:text-slate-500">
+                  {{ r.members_total }} member{{ '' if r.members_total == 1 else 's' }} · {{ r.staff_count }} staff
+                </span>
+              </span>
+            </a>
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums text-gray-900 dark:text-white font-medium">{{ r.members_active }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">
+            {% if r.new_this_month %}
+              <span class="text-green-600 dark:text-green-400 font-medium">+{{ r.new_this_month }}</span>
+            {% else %}
+              <span class="text-gray-300 dark:text-slate-600">—</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums">
+            {% if r.lapsed %}
+              <span class="{{ 'text-red-600 dark:text-red-400 font-medium' if r.lapsed_pct >= 20 else 'text-gray-600 dark:text-slate-300' }}">
+                {{ r.lapsed }} <span class="type-p3 text-gray-400 dark:text-slate-500">({{ r.lapsed_pct }}%)</span>
+              </span>
+            {% else %}
+              <span class="text-gray-300 dark:text-slate-600">—</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums text-gray-900 dark:text-white font-medium">{{ money(r.revenue_month) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">
+            {% if r.outstanding %}
+              <span class="text-amber-600 dark:text-amber-400 font-medium">{{ money(r.outstanding) }}</span>
+              <span class="block type-p3 text-gray-400 dark:text-slate-500">{{ r.outstanding_n }} unpaid</span>
+            {% else %}
+              <span class="text-gray-300 dark:text-slate-600">—</span>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3 text-right tabular-nums text-gray-600 dark:text-slate-300">
+            {% if r.visits_7d %}{{ r.visits_7d }}{% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if rows | length > 1 %}
+      <tfoot>
+        <tr class="border-t border-gray-200 dark:border-slate-600 font-semibold text-gray-900 dark:text-white">
+          <td class="px-5 py-3">All gyms</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ totals.members_active }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ totals.new_this_month }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ totals.lapsed }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ money(totals.revenue_month) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ money(totals.outstanding) }}</td>
+          <td class="px-5 py-3 text-right tabular-nums">{{ totals.visits_7d }}</td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<p class="type-p3 text-gray-400 dark:text-slate-500 mt-4">
+  Lapsed counts members whose most recent membership ended 30 days ago or more.
+  Visits need a door reader — gyms without one show no visit counts.
+  This page shows totals only; member details live inside each gym.
+</p>
+
+<script src="{{ url_for('static', filename='vendor/chart-4.4.3.umd.min.js') }}"></script>
+<script>
+(function () {
+  const isDark     = document.documentElement.classList.contains('dark');
+  const gridColor  = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.06)';
+  const tickColor  = isDark ? 'rgba(148,163,184,0.7)' : '#9ca3af';
+  const tooltipBg  = isDark ? '#1e293b' : '#fff';
+  const tooltipTxt = isDark ? '#e2e8f0' : '#1f2937';
+  const borderClr  = isDark ? '#334155' : '#e5e7eb';
+
+  const series = {{ series | tojson }};
+  const labels = {{ labels | tojson }};
+  const inr = v => '₹' + Number(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+  // One line per gym. With a single gym the per-gym line IS the estate total,
+  // so drawing both would just stack two identical lines on top of each other.
+  const datasets = series.map(s => ({
+    label: s.name,
+    data: s.values,
+    borderColor: s.color,
+    backgroundColor: s.color + '20',
+    borderWidth: 2,
+    tension: 0.3,
+    pointRadius: 3,
+    pointHoverRadius: 5,
+    fill: series.length === 1
+  }));
+
+  new Chart(document.getElementById('revenueTrend'), {
+    type: 'line',
+    data: { labels: labels, datasets: datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: series.length > 1,
+          position: 'bottom',
+          labels: { color: tickColor, usePointStyle: true, boxWidth: 8, font: { size: 11 } }
+        },
+        tooltip: {
+          backgroundColor: tooltipBg, titleColor: tooltipTxt, bodyColor: tooltipTxt,
+          borderColor: borderClr, borderWidth: 1,
+          callbacks: { label: c => c.dataset.label + ': ' + inr(c.parsed.y) }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 11 } } },
+        y: {
+          beginAtZero: true,
+          grid: { color: gridColor },
+          ticks: { color: tickColor, font: { size: 11 }, callback: v => inr(v) }
+        }
+      }
+    }
+  });
+})();
+</script>
+
+{% endif %}
+{% endblock %}

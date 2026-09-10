@@ -1,0 +1,245 @@
+{% extends 'operator/base.html' %}
+{% block title %}Finance{% endblock %}
+
+{% macro money(value) -%}₹{{ value|inr }}{%- endmacro %}
+
+{# whitespace-nowrap matters here: on a narrow screen the minus sign wrapped
+   onto its own line, leaving "−" above "₹1,08,140" — a loss that reads as a
+   profit with a stray dash above it. #}
+{% macro signed(value) -%}
+  {%- if value < 0 -%}
+    <span class="text-red-600 dark:text-red-400 whitespace-nowrap">−₹{{ (value * -1)|inr }}</span>
+  {%- else -%}
+    <span class="text-green-700 dark:text-green-400 whitespace-nowrap">₹{{ value|inr }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+
+<div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
+  <div>
+    <h1 class="type-h1 text-gray-900 dark:text-white">Finance</h1>
+    <p class="type-p2 text-gray-400 dark:text-slate-500 mt-0.5">
+      {{ period_start.strftime('%d %b') }} – {{ period_end.strftime('%d %b %Y') }}
+    </p>
+  </div>
+
+  <form method="GET" action="{{ url_for('operator.finance') }}" class="flex items-center gap-2">
+    <label for="month" class="type-p3 text-gray-500 dark:text-slate-400">Month</label>
+    <select id="month" name="month" onchange="this.form.submit()"
+            class="px-3 py-2 border border-gray-200 dark:border-slate-600 rounded-xl text-sm
+                   bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100
+                   focus:outline-none focus:ring-2 focus:ring-green-600">
+      {% for opt in month_options %}
+        <option value="{{ opt.value }}" {{ 'selected' if opt.value == selected_month }}>{{ opt.label }}</option>
+      {% endfor %}
+    </select>
+    <noscript>
+      <button type="submit" class="px-3 py-2 bg-green-700 text-white text-sm font-semibold rounded-xl">Go</button>
+    </noscript>
+  </form>
+
+  <a href="{{ url_for('operator.finance_export', **request.args) }}"
+     class="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-gray-700 dark:text-slate-200 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    Export CSV
+  </a>
+
+</div>
+
+{% if not rows %}
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-10 text-center">
+    <p class="text-gray-900 dark:text-white font-semibold">No gyms yet</p>
+    <p class="type-p2 text-gray-500 dark:text-slate-400 mt-1">There is nothing to account for until a gym exists.</p>
+  </div>
+{% else %}
+
+<!-- ── Estate summary ───────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 min-[480px]:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Revenue in</p>
+    <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mt-1">{{ money(totals.revenue) }}</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      {{ money(totals.membership_rev) }} memberships · {{ money(totals.pt_rev) }} PT
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Costs out</p>
+    <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mt-1">{{ money(totals.costs) }}</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      {{ money(totals.expenses) }} running · {{ money(totals.salaries) }} salaries
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border-2 shadow-sm p-5
+              {{ 'border-green-600 dark:border-green-500' if totals.net >= 0 else 'border-red-500 dark:border-red-500' }}">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Net</p>
+    <p class="text-2xl sm:text-3xl font-extrabold mt-1">{{ signed(totals.net) }}</p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">
+      {% if totals.margin is not none %}{{ totals.margin }}% margin{% else %}no revenue to divide by{% endif %}
+    </p>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+    <p class="type-p3 text-gray-400 dark:text-slate-500 uppercase tracking-wide">Gyms in profit</p>
+    <p class="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mt-1">
+      {{ rows | selectattr('net', 'ge', 0) | list | length }}<span class="text-gray-300 dark:text-slate-600 text-xl"> / {{ rows | length }}</span>
+    </p>
+    <p class="type-p3 text-gray-400 dark:text-slate-500 mt-1">this month</p>
+  </div>
+</div>
+
+<!-- ── Net trend ────────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5 mb-6">
+  <div class="flex items-baseline justify-between mb-4">
+    <h2 class="type-h2 text-gray-900 dark:text-white">Net by month</h2>
+    <p class="type-p3 text-gray-400 dark:text-slate-500">revenue in, minus costs out</p>
+  </div>
+  <div class="h-72"><canvas id="netTrend"></canvas></div>
+</div>
+
+<!-- ── Per-gym P&L ──────────────────────────────────────────────────────────── -->
+<div class="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm overflow-hidden">
+  <div class="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
+    <h2 class="type-h2 text-gray-900 dark:text-white">By gym</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-gray-500 dark:text-slate-400 border-b border-gray-100 dark:border-slate-700">
+          <th class="px-5 py-3 font-medium">Gym</th>
+          <th class="px-3 py-3 font-medium text-right">Memberships</th>
+          <th class="px-3 py-3 font-medium text-right">PT</th>
+          <th class="px-3 py-3 font-medium text-right">Revenue</th>
+          <th class="px-3 py-3 font-medium text-right">Running costs</th>
+          <th class="px-3 py-3 font-medium text-right">Salaries</th>
+          <th class="px-3 py-3 font-medium text-right">Net</th>
+          <th class="px-5 py-3 font-medium text-right">Margin</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50 dark:divide-slate-700/60">
+        {% for r in rows %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-slate-700/40 transition-colors">
+          <td class="px-5 py-3">
+            <a href="{{ url_for('operator.gym_detail', gym_id=r.gym.id) }}" class="flex items-center gap-2.5 group">
+              <span class="w-2.5 h-2.5 rounded-full flex-none" style="background: {{ r.gym.primary_color or '#166534' }}"></span>
+              <span class="font-semibold text-gray-900 dark:text-white group-hover:underline">{{ r.gym.name }}</span>
+            </a>
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-slate-300">{{ money(r.membership_rev) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-slate-300">
+            {% if r.pt_rev %}{{ money(r.pt_rev) }}{% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums font-medium text-gray-900 dark:text-white">{{ money(r.revenue) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-slate-300">{{ money(r.expenses) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums text-gray-600 dark:text-slate-300">
+            {% if r.salaries %}{{ money(r.salaries) }}{% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums font-semibold">{{ signed(r.net) }}</td>
+          <td class="px-5 py-3 text-right tabular-nums text-gray-600 dark:text-slate-300">
+            {% if r.margin is not none %}{{ r.margin }}%{% else %}<span class="text-gray-300 dark:text-slate-600">—</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% if rows | length > 1 %}
+      <tfoot>
+        <tr class="border-t border-gray-200 dark:border-slate-600 font-semibold text-gray-900 dark:text-white">
+          <td class="px-5 py-3">All gyms</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ money(totals.membership_rev) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ money(totals.pt_rev) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ money(totals.revenue) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ money(totals.expenses) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ money(totals.salaries) }}</td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ signed(totals.net) }}</td>
+          <td class="px-5 py-3 text-right tabular-nums">
+            {% if totals.margin is not none %}{{ totals.margin }}%{% else %}—{% endif %}
+          </td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+  </div>
+</div>
+
+<!-- ── What these numbers mean ──────────────────────────────────────────────── -->
+<div class="mt-4 bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-slate-700 rounded-xl px-4 py-3">
+  <p class="type-p3 text-gray-500 dark:text-slate-400 leading-relaxed">
+    <strong class="text-gray-700 dark:text-slate-300">How this is counted.</strong>
+    Revenue is money <em>received</em> in the month — memberships and PT packages both
+    dated by when they were paid, so something sold in one month and paid in the next
+    lands in the next. Salaries are dated by when they went out. Running costs are dated
+    by when they were <em>incurred</em>, because that is the only date an expense record
+    carries — an unpaid bill entered this month still counts against this month.
+    Trainer PT commission appears once, inside salaries; it is not added again from
+    session payouts.
+  </p>
+</div>
+
+<script src="{{ url_for('static', filename='vendor/chart-4.4.3.umd.min.js') }}"></script>
+<script>
+(function () {
+  const isDark     = document.documentElement.classList.contains('dark');
+  const gridColor  = isDark ? 'rgba(148,163,184,0.1)' : 'rgba(0,0,0,0.06)';
+  const tickColor  = isDark ? 'rgba(148,163,184,0.7)' : '#9ca3af';
+  const zeroColor  = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(0,0,0,0.28)';
+  const tooltipBg  = isDark ? '#1e293b' : '#fff';
+  const tooltipTxt = isDark ? '#e2e8f0' : '#1f2937';
+  const borderClr  = isDark ? '#334155' : '#e5e7eb';
+
+  const series = {{ series | tojson }};
+  const labels = {{ labels | tojson }};
+  const inr = v => (v < 0 ? '−₹' : '₹') +
+    Math.abs(Number(v)).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+
+  new Chart(document.getElementById('netTrend'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: series.map(s => ({
+        label: s.name,
+        data: s.values,
+        backgroundColor: s.color,
+        borderRadius: 3,
+        borderSkipped: false
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          display: series.length > 1,
+          position: 'bottom',
+          labels: { color: tickColor, usePointStyle: true, boxWidth: 8, font: { size: 11 } }
+        },
+        tooltip: {
+          backgroundColor: tooltipBg, titleColor: tooltipTxt, bodyColor: tooltipTxt,
+          borderColor: borderClr, borderWidth: 1,
+          callbacks: { label: c => c.dataset.label + ': ' + inr(c.parsed.y) }
+        }
+      },
+      scales: {
+        x: { stacked: false, grid: { display: false }, ticks: { color: tickColor, font: { size: 11 } } },
+        y: {
+          // Not beginAtZero: a loss-making month must be able to draw below
+          // the axis, and the zero line is what makes profit and loss legible.
+          grid: {
+            color: ctx => ctx.tick.value === 0 ? zeroColor : gridColor,
+            lineWidth: ctx => ctx.tick.value === 0 ? 1.5 : 1
+          },
+          ticks: { color: tickColor, font: { size: 11 }, callback: v => inr(v) }
+        }
+      }
+    }
+  });
+})();
+</script>
+
+{% endif %}
+{% endblock %}
