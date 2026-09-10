@@ -103,3 +103,34 @@ def role_required(*roles):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+
+def format_inr(value):
+    """Group digits the Indian way: 1,41,600 rather than 141,600.
+
+    Python's own thousands separator groups in threes all the way up, which
+    is not how anyone in India reads a rupee figure — 1,41,600 is one lakh
+    forty-one thousand six hundred, and 141,600 makes a reader stop and
+    count. The charts on the same pages already use toLocaleString('en-IN'),
+    so without this the server-rendered totals disagreed with the axis
+    labels sitting directly beneath them.
+
+    Registered as the `inr` Jinja filter in create_app().
+    """
+    try:
+        rupees = int(round(float(value or 0)))
+    except (TypeError, ValueError):
+        return '0'
+
+    sign, digits = ('-' if rupees < 0 else ''), str(abs(rupees))
+    if len(digits) <= 3:
+        return sign + digits
+
+    head, last_three = digits[:-3], digits[-3:]
+    groups = []
+    while len(head) > 2:
+        groups.insert(0, head[-2:])
+        head = head[:-2]
+    if head:
+        groups.insert(0, head)
+    return f"{sign}{','.join(groups)},{last_three}"

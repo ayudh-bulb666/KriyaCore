@@ -17,7 +17,7 @@ from flask_wtf.csrf import CSRFError
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from .helpers import validate_password
+from .helpers import validate_password, format_inr
 from .models import db, User, Gym, Member, MembershipPlan, MemberMembership
 from .plans import PLANS, FEATURE_ROUTES, plan_has
 
@@ -281,6 +281,7 @@ def create_app():
 
     # Expose Python builtins to all templates
     app.jinja_env.globals.update(zip=zip, enumerate=enumerate)
+    app.jinja_env.filters['inr'] = format_inr
 
     # ── Route guard: enforce gym/platform-admin separation ─────────────────────
     @app.before_request
