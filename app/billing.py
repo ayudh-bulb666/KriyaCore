@@ -108,7 +108,6 @@ def export_csv():
     )
 
 
-
 @billing_bp.route('/new', methods=['GET', 'POST'])
 @login_required
 def new():

@@ -13,7 +13,6 @@ from .helpers import role_required, month_bounds, parse_month
 expenses_bp = Blueprint('expenses', __name__, url_prefix='/<string:gym_slug>/expenses')
 
 
-
 @expenses_bp.route('/')
 @login_required
 @role_required('super_admin')

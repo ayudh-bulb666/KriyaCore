@@ -1,5 +1,5 @@
 import calendar
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from functools import wraps
 from flask import abort
@@ -174,10 +174,8 @@ def parse_rupees(raw, default=None, allow_negative=False):
 
 
 # ── Month arithmetic ─────────────────────────────────────────────────────────
-# One copy. This existed three times: _month_bounds in staff.py and
-# expenses.py (identical), and month_bounds in operator_stats.py, each
-# working out the last day of a month by a different trick — add 32 days and
-# snap back, or jump from day 28. calendar.monthrange answers it directly.
+# Shared so the gym pages and the operator panel cannot drift on what a
+# month is.
 
 def month_bounds(ref=None):
     """(first day, last day) of the month containing `ref` (default: today)."""
@@ -191,14 +189,12 @@ def parse_month(raw):
 
     Anything unparseable falls back to the current month rather than
     erroring — a mistyped URL should show this month, not a stack trace.
+    strptime rejects a bad month (2026-13) as well as bad shapes.
     """
-    if raw:
-        try:
-            year, month = raw.split('-')
-            return month_bounds(date(int(year), int(month), 1))
-        except (ValueError, TypeError):
-            pass
-    return month_bounds()
+    try:
+        return month_bounds(datetime.strptime(raw, '%Y-%m').date())
+    except (ValueError, TypeError):
+        return month_bounds()
 
 
 def month_starts(today=None, months=6):

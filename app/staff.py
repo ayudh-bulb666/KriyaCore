@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from flask import Blueprint, render_template, redirect, url_for, request, flash
 from flask_login import login_required, current_user
@@ -159,7 +159,7 @@ def detail(user_id):
         payment=payment,
         employment_types=EMPLOYMENT_TYPES,
         pt_pay_modes=PT_PAY_MODES,
-        months=list(reversed(month_starts())),
+        months=reversed(month_starts()),
         month_start=start,
         month_value=start.strftime('%Y-%m'),
         members=Member.query.filter_by(gym_id=gid, status='active')
