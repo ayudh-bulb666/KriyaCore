@@ -27,6 +27,7 @@ from .models import (db, Attendance, Expense, Member, MemberMembership,
 # Imported rather than restated so the operator panel and a gym's own
 # dashboard can never drift into disagreeing about what "lapsed" means.
 from .dashboard import LAPSED_AFTER_DAYS
+from .helpers import month_bounds, month_starts
 
 
 def member_counts():
@@ -186,17 +187,6 @@ def visits_since(start_dt):
     return dict(rows)
 
 
-def month_starts(today=None, months=6):
-    """The first of each month, oldest first, ending with `today`'s month."""
-    today = today or date.today()
-    cursor = today.replace(day=1)
-    out = [cursor]
-    for _ in range(months - 1):
-        cursor = (cursor - timedelta(days=1)).replace(day=1)
-        out.append(cursor)
-    return list(reversed(out))
-
-
 def revenue_by_month(today=None, months=6):
     """({gym_id: {(year, month): float}}, [month_start, ...]).
 
@@ -252,14 +242,6 @@ def attach_gym_stats(gyms, today=None):
         gym.admin               = admins.get(gym.id)
 
     return gyms
-
-
-def month_bounds(month_start):
-    """(first day, last day) of the month `month_start` falls in."""
-    first = month_start.replace(day=1)
-    # Day 28 is in every month; adding 4 days always lands in the next one.
-    following = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
-    return first, following - timedelta(days=1)
 
 
 def pt_revenue_between(start, end):

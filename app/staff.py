@@ -6,48 +6,14 @@ from werkzeug.security import generate_password_hash
 
 from .models import (db, User, Member, StaffProfile, StaffShift, PTPackage,
                      PTSession, SalaryPayment, EMPLOYMENT_TYPES, PT_PAY_MODES)
-from .helpers import role_required, validate_password, parse_rupees
+from .helpers import (role_required, validate_password, parse_rupees,
+                      month_bounds, parse_month, month_starts)
 from .plans import plan_within_staff_limit, PLANS
 
 staff_bp = Blueprint('staff', __name__, url_prefix='/<string:gym_slug>/staff')
 
 
 # ── Small shared helpers ─────────────────────────────────────────────────────
-
-def _month_bounds(ref=None):
-    ref = ref or date.today()
-    start = ref.replace(day=1)
-    return start, (start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
-
-
-def _parse_month(raw):
-    """'YYYY-MM' → (first, last) of that month. Anything unparseable falls
-    back to the current month rather than erroring."""
-    if raw:
-        try:
-            y, m = raw.split('-')
-            return _month_bounds(date(int(y), int(m), 1))
-        except (ValueError, TypeError):
-            pass
-    return _month_bounds()
-
-
-def _recent_months(n=6):
-    out, cur = [], date.today().replace(day=1)
-    for _ in range(n):
-        out.append(cur)
-        cur = (cur - timedelta(days=1)).replace(day=1)
-    return out
-
-
-def _money(raw, default=None):
-    """Parse a rupee figure. Returns (value, error); blank yields `default`.
-
-    Delegates to helpers.parse_rupees, which also rejects nan and inf —
-    a salary of nan makes every payroll total nan.
-    """
-    return parse_rupees(raw, default=default)
-
 
 def _get_staff(user_id):
     """A staff user in this gym, or 404. Never matches an admin account —
@@ -76,7 +42,7 @@ def _profile_for(user):
 def index():
     gid   = current_user.gym_id
     staff = User.query.filter_by(gym_id=gid, role='staff').order_by(User.name).all()
-    start, end = _month_bounds()
+    start, end = month_bounds()
 
     rows = []
     for u in staff:
@@ -156,7 +122,7 @@ def detail(user_id):
     gid   = current_user.gym_id
     user  = _get_staff(user_id)
     prof  = _profile_for(user)
-    start, end = _parse_month(request.args.get('month', ''))
+    start, end = parse_month(request.args.get('month', ''))
 
     shifts = (StaffShift.query
               .filter(StaffShift.gym_id == gid, StaffShift.user_id == user.id,
@@ -193,7 +159,7 @@ def detail(user_id):
         payment=payment,
         employment_types=EMPLOYMENT_TYPES,
         pt_pay_modes=PT_PAY_MODES,
-        months=_recent_months(),
+        months=list(reversed(month_starts())),
         month_start=start,
         month_value=start.strftime('%Y-%m'),
         members=Member.query.filter_by(gym_id=gid, status='active')
@@ -217,7 +183,7 @@ def save_profile(user_id):
         return redirect(url_for('staff.detail', user_id=user.id))
     user.name = name
 
-    salary, err = _money(f.get('salary_amount'), default=None)
+    salary, err = parse_rupees(f.get('salary_amount'), default=None)
     if err:
         flash(err, 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
@@ -226,7 +192,7 @@ def save_profile(user_id):
     if pt_mode not in dict(PT_PAY_MODES):
         pt_mode = 'none'
 
-    pct, err = _money(f.get('pt_commission_pct'), default=None)
+    pct, err = parse_rupees(f.get('pt_commission_pct'), default=None)
     if err:
         flash('Commission must be a number.', 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
@@ -234,7 +200,7 @@ def save_profile(user_id):
         flash('Commission can\'t be more than 100%.', 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
 
-    rate, err = _money(f.get('pt_session_rate'), default=None)
+    rate, err = parse_rupees(f.get('pt_session_rate'), default=None)
     if err:
         flash('Session rate must be a number.', 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
@@ -391,7 +357,7 @@ def pt_package_new(user_id):
         flash('A package needs at least one session.', 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
 
-    price, err = _money(f.get('price'), default=0.0)
+    price, err = parse_rupees(f.get('price'), default=0.0)
     if err:
         flash(err, 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
@@ -504,21 +470,21 @@ def salary_pay(user_id):
     gid  = current_user.gym_id
     user = _get_staff(user_id)
 
-    start, end = _parse_month(request.form.get('period_month', ''))
+    start, end = parse_month(request.form.get('period_month', ''))
     if SalaryPayment.query.filter_by(user_id=user.id, period_month=start).first():
         flash(f'{user.name} has already been paid for '
               f'{start.strftime("%B %Y")}.', 'warning')
         return redirect(url_for('staff.detail', user_id=user.id, month=start.strftime('%Y-%m')))
 
     prof = _profile_for(user)
-    base, err = _money(request.form.get('base_amount'),
+    base, err = parse_rupees(request.form.get('base_amount'),
                        default=float(prof.salary_amount or 0))
     if err:
         flash(err, 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
 
     pt_default = PTSession.payout_between(gid, user.id, start, end)
-    pt_amt, err = _money(request.form.get('pt_amount'), default=pt_default)
+    pt_amt, err = parse_rupees(request.form.get('pt_amount'), default=pt_default)
     if err:
         flash(err, 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))

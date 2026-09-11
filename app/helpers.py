@@ -1,3 +1,6 @@
+import calendar
+from datetime import date, timedelta
+
 from functools import wraps
 from flask import abort
 from flask_login import current_user
@@ -168,3 +171,42 @@ def parse_rupees(raw, default=None, allow_negative=False):
     if abs(value) > MAX_RUPEES:
         return None, 'That amount is too large — check for a typo.'
     return round(value, 2), None
+
+
+# ── Month arithmetic ─────────────────────────────────────────────────────────
+# One copy. This existed three times: _month_bounds in staff.py and
+# expenses.py (identical), and month_bounds in operator_stats.py, each
+# working out the last day of a month by a different trick — add 32 days and
+# snap back, or jump from day 28. calendar.monthrange answers it directly.
+
+def month_bounds(ref=None):
+    """(first day, last day) of the month containing `ref` (default: today)."""
+    ref   = ref or date.today()
+    first = ref.replace(day=1)
+    return first, first.replace(day=calendar.monthrange(first.year, first.month)[1])
+
+
+def parse_month(raw):
+    """'YYYY-MM' → (first, last) of that month.
+
+    Anything unparseable falls back to the current month rather than
+    erroring — a mistyped URL should show this month, not a stack trace.
+    """
+    if raw:
+        try:
+            year, month = raw.split('-')
+            return month_bounds(date(int(year), int(month), 1))
+        except (ValueError, TypeError):
+            pass
+    return month_bounds()
+
+
+def month_starts(today=None, months=6):
+    """First of each month, oldest first, ending with `today`'s month."""
+    today  = today or date.today()
+    cursor = today.replace(day=1)
+    out    = [cursor]
+    for _ in range(months - 1):
+        cursor = (cursor - timedelta(days=1)).replace(day=1)
+        out.append(cursor)
+    return list(reversed(out))

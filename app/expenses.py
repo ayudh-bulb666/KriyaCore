@@ -8,30 +8,10 @@ from flask_login import login_required, current_user
 from sqlalchemy import func
 
 from .models import db, Expense, EXPENSE_CATEGORIES, EXPENSE_CATEGORY_LABELS
-from .helpers import role_required
+from .helpers import role_required, month_bounds, parse_month
 
 expenses_bp = Blueprint('expenses', __name__, url_prefix='/<string:gym_slug>/expenses')
 
-
-def _month_bounds(ref=None):
-    """First and last day of the month containing `ref` (default: today)."""
-    ref   = ref or date.today()
-    start = ref.replace(day=1)
-    nxt   = (start + timedelta(days=32)).replace(day=1)
-    return start, nxt - timedelta(days=1)
-
-
-def _parse_month(raw):
-    """Read a 'YYYY-MM' string off the query string. Anything unparseable
-    falls back to the current month rather than erroring — a bad URL should
-    show this month's costs, not a stack trace."""
-    if raw:
-        try:
-            y, m = raw.split('-')
-            return _month_bounds(date(int(y), int(m), 1))
-        except (ValueError, TypeError):
-            pass
-    return _month_bounds()
 
 
 @expenses_bp.route('/')
@@ -42,7 +22,7 @@ def index():
     to super_admin for the same reason staff don't see revenue."""
     gid          = current_user.gym_id
     month_raw    = request.args.get('month', '')
-    start, end   = _parse_month(month_raw)
+    start, end   = parse_month(month_raw)
 
     rows = (Expense.query
             .filter(Expense.gym_id == gid,
@@ -153,7 +133,7 @@ def delete(expense_id):
 @role_required('super_admin')
 def export_csv():
     gid        = current_user.gym_id
-    start, end = _parse_month(request.args.get('month', ''))
+    start, end = parse_month(request.args.get('month', ''))
 
     rows = (Expense.query
             .filter(Expense.gym_id == gid,

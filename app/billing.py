@@ -108,15 +108,6 @@ def export_csv():
     )
 
 
-def _parse_amount(raw, fallback):
-    """Read a rupee amount off a form. Blank means 'use the plan price'.
-
-    Delegates to helpers.parse_rupees, which also rejects nan and inf —
-    both are valid floats that pass a "is it negative?" check and then
-    poison every SUM they reach.
-    """
-    return parse_rupees(raw, default=fallback)
-
 
 @billing_bp.route('/new', methods=['GET', 'POST'])
 @login_required
@@ -162,7 +153,7 @@ def new():
         # The plan price is the starting point, not the rule — corporate rates,
         # referral discounts and part-payments are normal, so what the member
         # actually agreed to is stored on the membership itself.
-        amount, error = _parse_amount(request.form.get('amount'), plan.price)
+        amount, error = parse_rupees(request.form.get('amount'), default=plan.price)
         if error:
             flash(error, 'danger')
             return render_template('billing/new.html', members=members, plans=plans,
@@ -256,7 +247,7 @@ def set_amount(membership_id):
     mem = MemberMembership.query.filter_by(
         id=membership_id, gym_id=current_user.gym_id).first_or_404()
 
-    amount, error = _parse_amount(request.form.get('amount'), mem.amount)
+    amount, error = parse_rupees(request.form.get('amount'), default=mem.amount)
     if error:
         flash(error, 'danger')
         return redirect(request.referrer or url_for('billing.index'))
