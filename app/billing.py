@@ -5,7 +5,7 @@ from flask_login import login_required, current_user
 from datetime import date, timedelta
 from xhtml2pdf import pisa
 
-from .helpers import own_gym_id
+from .helpers import own_gym_id, parse_rupees
 from .models import db, Member, MemberMembership, MembershipPlan
 from .plans import plan_has
 from .whatsapp import send_and_log
@@ -111,20 +111,11 @@ def export_csv():
 def _parse_amount(raw, fallback):
     """Read a rupee amount off a form. Blank means 'use the plan price'.
 
-    Returns (amount, error). A bad value is rejected rather than quietly
-    coerced — silently turning a typo into ₹0 would corrupt the revenue
-    figures the owner makes decisions on.
+    Delegates to helpers.parse_rupees, which also rejects nan and inf —
+    both are valid floats that pass a "is it negative?" check and then
+    poison every SUM they reach.
     """
-    raw = (raw or '').strip().replace(',', '')
-    if not raw:
-        return fallback, None
-    try:
-        value = float(raw)
-    except ValueError:
-        return None, 'Amount must be a number.'
-    if value < 0:
-        return None, 'Amount cannot be negative.'
-    return round(value, 2), None
+    return parse_rupees(raw, default=fallback)
 
 
 @billing_bp.route('/new', methods=['GET', 'POST'])
@@ -145,7 +136,15 @@ def new():
             flash('Member, plan, and start date are required.', 'danger')
             return render_template('billing/new.html', members=members, plans=plans)
 
-        plan = MembershipPlan.query.filter_by(id=int(plan_id), gym_id=gid).first_or_404()
+        # Same reasoning as attendance: a non-numeric plan_id is a bad
+        # request, not an exception.
+        try:
+            plan_pk = int(plan_id)
+        except (TypeError, ValueError):
+            flash('That plan could not be found.', 'danger')
+            return render_template('billing/new.html', members=members, plans=plans,
+                                   today=date.today().isoformat())
+        plan = MembershipPlan.query.filter_by(id=plan_pk, gym_id=gid).first_or_404()
 
         # The member has to belong to this gym. The dropdown only offers our
         # own members, but the POST can carry any id — without this check a

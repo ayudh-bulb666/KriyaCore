@@ -6,7 +6,7 @@ from werkzeug.security import generate_password_hash
 
 from .models import (db, User, Member, StaffProfile, StaffShift, PTPackage,
                      PTSession, SalaryPayment, EMPLOYMENT_TYPES, PT_PAY_MODES)
-from .helpers import role_required, validate_password
+from .helpers import role_required, validate_password, parse_rupees
 from .plans import plan_within_staff_limit, PLANS
 
 staff_bp = Blueprint('staff', __name__, url_prefix='/<string:gym_slug>/staff')
@@ -42,18 +42,11 @@ def _recent_months(n=6):
 
 def _money(raw, default=None):
     """Parse a rupee figure. Returns (value, error); blank yields `default`.
-    Rejected rather than coerced — a typo silently becoming ₹0 would put a
-    wrong number into someone's pay."""
-    raw = (raw or '').strip().replace(',', '')
-    if not raw:
-        return default, None
-    try:
-        v = float(raw)
-    except ValueError:
-        return None, 'That amount isn\'t a number.'
-    if v < 0:
-        return None, 'Amount cannot be negative.'
-    return round(v, 2), None
+
+    Delegates to helpers.parse_rupees, which also rejects nan and inf —
+    a salary of nan makes every payroll total nan.
+    """
+    return parse_rupees(raw, default=default)
 
 
 def _get_staff(user_id):
@@ -530,12 +523,14 @@ def salary_pay(user_id):
         flash(err, 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
 
-    # Adjustments are the one figure that may be negative — a deduction.
-    raw_adj = (request.form.get('adjustment') or '').strip().replace(',', '')
-    try:
-        adjustment = round(float(raw_adj), 2) if raw_adj else 0.0
-    except ValueError:
-        flash('Adjustment must be a number.', 'danger')
+    # Adjustments are the one figure that may be negative — a deduction —
+    # so this is the one call that opts into allow_negative. It still has to
+    # be finite: a bare float() here accepted "nan", and nan + anything is
+    # nan, so a single deduction could make the whole payroll unreadable.
+    adjustment, adj_error = parse_rupees(request.form.get('adjustment'),
+                                         default=0.0, allow_negative=True)
+    if adj_error:
+        flash(f'Adjustment: {adj_error}', 'danger')
         return redirect(url_for('staff.detail', user_id=user.id))
 
     if base + pt_amt + adjustment < 0:

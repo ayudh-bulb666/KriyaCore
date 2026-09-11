@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify, abort
 from flask_login import login_required, current_user
 from datetime import datetime, date, timedelta
 
@@ -75,7 +75,13 @@ def log_visit():
         flash('Please select a member.', 'danger')
         return redirect(url_for('attendance.index'))
 
-    member = Member.query.filter_by(id=int(member_id), gym_id=gid).first_or_404()
+    # int() straight off the form turned any non-numeric value into a 500
+    # and a Sentry alert. A bad id is a 404, not a crash.
+    try:
+        member_pk = int(member_id)
+    except (TypeError, ValueError):
+        abort(404)
+    member = Member.query.filter_by(id=member_pk, gym_id=gid).first_or_404()
 
     duplicate = Attendance.recent_visit(gid, member.id)
     if duplicate:

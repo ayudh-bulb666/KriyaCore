@@ -26,7 +26,18 @@ from flask_login import current_user
 RESERVED_SLUGS = {
     'operator', 'login', 'logout', 'auth', 'static', 'account',
     'api', 'admin', 'app', 'www', 'favicon.ico', 'robots.txt',
+    # Real top-level routes a gym slug would sit underneath. Flask matches
+    # the more specific rule first, so a gym given one of these is simply
+    # broken rather than dangerous — but broken at creation time, which is
+    # a bad afternoon for whoever set it up.
+    'healthz', 'internal', 'webhook',
 }
+
+# A slug becomes part of every URL the gym's staff use. Restricting it to
+# lowercase letters, digits and hyphens keeps it readable, keeps it out of
+# percent-encoding, and removes any question about what a '/' or a '..' in
+# the middle of a route prefix would do.
+SLUG_PATTERN = r'^[a-z0-9]+(?:-[a-z0-9]+)*$'
 
 
 def register_gym_scoping(blueprint):

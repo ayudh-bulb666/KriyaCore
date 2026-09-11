@@ -1,6 +1,7 @@
 import base64
 import io
 import secrets
+from urllib.parse import urlparse
 from datetime import datetime, timedelta
 
 import pyotp
@@ -41,6 +42,25 @@ def _issue_backup_codes(user):
     return plaintext_codes
 
 
+def _safe_next(target):
+    """Return `target` only if it is a path on this site, else None.
+
+    An unvalidated ?next= is an open redirect: a link to our own login page
+    that lands the user on someone else's site afterwards, which is how a
+    convincing credential-phishing page gets its traffic. Anything with a
+    scheme, a host, or a backslash (which some browsers normalise to '/')
+    is refused.
+    """
+    if not target:
+        return None
+    if not target.startswith('/') or target.startswith('//') or '\\' in target:
+        return None
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return None
+    return target
+
+
 def _complete_login(user, remember):
     user.reset_failed_logins()
     db.session.commit()
@@ -49,7 +69,7 @@ def _complete_login(user, remember):
     # away before establishing the authenticated one. Anything an attacker
     # managed to seed into the visitor's session — the classic session
     # fixation move — does not survive into their logged-in session.
-    next_page = session.pop('pending_2fa_next', None)
+    next_page = _safe_next(session.pop('pending_2fa_next', None))
     session.clear()
 
     login_user(user, remember=remember)
@@ -74,14 +94,24 @@ def login():
 
         user = User.query.filter_by(email=email).first()
 
-        # Account-level lockout — applies regardless of which IP is attacking it
+        # The password is checked first, and the lockout is reported only to
+        # someone who got it right. Announcing "this account is locked"
+        # before checking would answer "does this email exist?" after five
+        # guesses — the same oracle the generic failure message below exists
+        # to close. A locked account never logs in either way; the
+        # difference is only in what a stranger is told.
+        password_ok = bool(user) and check_password_hash(user.password_hash, password)
+
         if user and user.is_locked:
-            minutes_left = max(1, int((user.locked_until - datetime.utcnow()).total_seconds() // 60) + 1)
-            flash(f'This account is temporarily locked due to too many failed attempts. '
-                  f'Try again in {minutes_left} minute{"s" if minutes_left != 1 else ""}.', 'danger')
+            if password_ok:
+                minutes_left = max(1, int((user.locked_until - datetime.utcnow()).total_seconds() // 60) + 1)
+                flash(f'This account is temporarily locked due to too many failed attempts. '
+                      f'Try again in {minutes_left} minute{"s" if minutes_left != 1 else ""}.', 'danger')
+            else:
+                flash('Invalid email or password.', 'danger')
             return render_template('auth/login.html')
 
-        if user and check_password_hash(user.password_hash, password):
+        if password_ok:
             if user.totp_enabled:
                 # Password is correct, but don't call login_user() yet —
                 # the session stays fully anonymous until the 2FA code also
@@ -89,20 +119,20 @@ def login():
                 session['pending_2fa_user_id'] = user.id
                 session['pending_2fa_at']      = datetime.utcnow().isoformat()
                 session['pending_2fa_remember'] = remember
-                session['pending_2fa_next']     = request.args.get('next')
+                session['pending_2fa_next']     = _safe_next(request.args.get('next'))
                 return redirect(url_for('auth.verify_2fa'))
             return _complete_login(user, remember)
 
+        # One message for every failure, whether or not the email exists.
+        # Saying "3 attempts remaining" only for real accounts turned the
+        # login form into a way to test whether an address is registered —
+        # useful to someone deciding which addresses to target. The attempt
+        # is still counted, and the lockout still happens; the person just
+        # is not told which of the two things they got wrong.
         if user:
             user.register_failed_login(max_attempts=MAX_LOGIN_ATTEMPTS, lockout_minutes=LOCKOUT_MINUTES)
             db.session.commit()
-            if user.is_locked:
-                flash(f'Too many failed attempts. This account is locked for {LOCKOUT_MINUTES} minutes.', 'danger')
-                return render_template('auth/login.html')
-            remaining = MAX_LOGIN_ATTEMPTS - user.failed_login_attempts
-            flash(f'Invalid email or password. {remaining} attempt{"s" if remaining != 1 else ""} remaining.', 'danger')
-        else:
-            flash('Invalid email or password.', 'danger')
+        flash('Invalid email or password.', 'danger')
 
     return render_template('auth/login.html')
 
@@ -166,6 +196,12 @@ def verify_2fa():
 @login_required
 def logout():
     logout_user()
+    # logout_user() only removes Flask-Login's own keys. Everything else
+    # stays in the signed cookie — including impersonator_id from an
+    # unfinished impersonation, and pending_2fa_* from a login abandoned at
+    # the code prompt. On a shared front-desk machine that leaves a
+    # half-authenticated state sitting there after someone signs out.
+    session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('auth.login'))
 

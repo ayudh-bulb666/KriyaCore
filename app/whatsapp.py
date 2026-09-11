@@ -184,7 +184,10 @@ def settings():
         wa_settings.auto_expiry_reminders_enabled = request.form.get('auto_enabled') == 'on'
 
         try:
-            days = int(request.form.get('remind_days_before', 7))
+            try:
+                days = int(request.form.get('remind_days_before', 7))
+            except (TypeError, ValueError):
+                days = 7
         except ValueError:
             days = 7
         wa_settings.remind_days_before = max(1, min(days, 30))

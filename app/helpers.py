@@ -134,3 +134,37 @@ def format_inr(value):
     if head:
         groups.insert(0, head)
     return f"{sign}{','.join(groups)},{last_three}"
+
+
+# Rupee figures have to be finite. float() happily returns nan and inf for
+# the strings "nan", "inf" and "Infinity", and `nan < 0` is False, so a
+# plain "is it negative?" check waves them straight through. One such value
+# in an amount column turns every SUM that touches it into nan or inf —
+# the gym's revenue, the platform P&L, a staff member's pay — and it stays
+# broken until somebody finds the row by hand.
+MAX_RUPEES = 100_000_000          # ₹10 crore: far above any real gym figure
+
+
+def parse_rupees(raw, default=None, allow_negative=False):
+    """Parse a money amount from a form. Returns (value, error).
+
+    Blank yields `default`. Rejects rather than coerces: a typo silently
+    becoming ₹0 would put a wrong number into someone's pay or into the
+    revenue an owner makes decisions on.
+    """
+    import math
+
+    raw = (raw or '').strip().replace(',', '')
+    if not raw:
+        return default, None
+    try:
+        value = float(raw)
+    except (ValueError, TypeError):
+        return None, 'Amount must be a number.'
+    if not math.isfinite(value):
+        return None, 'Amount must be a real number.'
+    if not allow_negative and value < 0:
+        return None, 'Amount cannot be negative.'
+    if abs(value) > MAX_RUPEES:
+        return None, 'That amount is too large — check for a typo.'
+    return round(value, 2), None

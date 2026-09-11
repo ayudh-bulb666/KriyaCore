@@ -1,4 +1,5 @@
 import base64
+import re
 import csv
 import io
 import secrets
@@ -12,13 +13,14 @@ from sqlalchemy.orm import joinedload
 
 from .helpers import validate_password
 from .models import db, Gym, User, Member, MemberMembership, MembershipPlan, AuditLog, Notification
+from . import limiter
 from .operator_stats import (attach_gym_stats, estate_rows, finance_rows,
                              net_by_month, revenue_by_month)
 # Reused, not restated: the filter tabs must mean the same thing on the
 # platform billing screen as they do inside a gym.
 from .billing import _apply_status_filter
 from .plans import PLANS
-from .tenant import RESERVED_SLUGS
+from .tenant import RESERVED_SLUGS, SLUG_PATTERN
 
 # The logo is base64'd into every page's HTML, so it costs bandwidth on every
 # request. 512 KB is generous for a gym logo and stops a 10 MB PNG making the
@@ -383,7 +385,14 @@ def billing():
                            date_from=date_from, date_to=date_to)
 
 
+# Bulk member data leaves through these four routes. The global ceiling is
+# 300/min, which at 50 rows a page or 5,000 rows a CSV is a million-plus
+# member records an hour from one signed-in session. These limits do not
+# stop a platform admin doing their job — nobody legitimately runs sixty
+# searches a minute — but they turn a stolen session from an instant export
+# into something slow enough for the audit log to be worth reading.
 @operator_bp.route('/search')
+@limiter.limit('30 per minute')
 @login_required
 @_platform_required
 def search():
@@ -502,6 +511,7 @@ def finance():
 
 
 @operator_bp.route('/billing/export.csv')
+@limiter.limit('10 per minute; 60 per hour')
 @login_required
 @_platform_required
 def billing_export():
@@ -568,6 +578,7 @@ def billing_export():
 
 
 @operator_bp.route('/insights/export.csv')
+@limiter.limit('10 per minute; 60 per hour')
 @login_required
 @_platform_required
 def insights_export():
@@ -594,6 +605,7 @@ def insights_export():
 
 
 @operator_bp.route('/finance/export.csv')
+@limiter.limit('10 per minute; 60 per hour')
 @login_required
 @_platform_required
 def finance_export():
@@ -677,6 +689,9 @@ def new_gym():
             pw_error = validate_password(admin_pass, email=admin_email, name=admin_name)
             if pw_error:
                 errors.append(pw_error)
+        if slug and not re.match(SLUG_PATTERN, slug):
+            errors.append('Slug can only contain lowercase letters, numbers and '
+                          'hyphens — for example "iron-temple-andheri".')
         if slug in RESERVED_SLUGS:
             errors.append(f'"{slug}" is a reserved word and can\'t be used as a gym URL.')
         if Gym.query.filter_by(slug=slug).first():
@@ -692,7 +707,7 @@ def new_gym():
 
         # Brand colour (optional)
         color = request.form.get('primary_color', '').strip()
-        brand_color = color if (color and color.startswith('#') and len(color) == 7) else '#166534'
+        brand_color = color if re.fullmatch(r'#[0-9a-fA-F]{6}', color or '') else '#166534'
 
         # Create gym
         gym = Gym(name=name, slug=slug, address=address, phone=phone, email=email,
@@ -763,7 +778,7 @@ def edit_gym(gym_id):
         gym.email   = request.form.get('email', '').strip().lower()
 
         color = request.form.get('primary_color', '').strip()
-        if color and color.startswith('#') and len(color) == 7:
+        if re.fullmatch(r'#[0-9a-fA-F]{6}', color or ''):
             gym.primary_color = color
 
         logo = request.files.get('logo')
@@ -922,6 +937,7 @@ def impersonate(gym_id):
     real_name = current_user.name
     session['impersonator_id']  = current_user.id
     session['impersonated_gym'] = gym.name
+    session['impersonated_gym_id'] = gym.id
 
     log_action('impersonation_started', gym=gym,
                detail=f'{real_name} logged in as {admin.name} ({admin.email})')
@@ -947,8 +963,11 @@ def exit_impersonation():
         flash('Invalid impersonation state — please log in again.', 'danger')
         return redirect(url_for('auth.logout'))
 
-    gym_name = session.get('impersonated_gym', 'unknown')
-    gym_obj  = Gym.query.filter_by(name=gym_name).first()
+    # By id, not by name: two gyms may share a name, and the audit row for
+    # an impersonation must point at the gym that was actually entered.
+    gym_id   = session.pop('impersonated_gym_id', None)
+    gym_obj  = Gym.query.get(gym_id) if gym_id else None
+    gym_name = gym_obj.name if gym_obj else session.get('impersonated_gym', 'unknown')
     # Log as the impersonated user before restoring original
     entry = AuditLog(
         actor_id=original.id, actor_name=original.name,
