@@ -356,3 +356,200 @@ def delete(member_id):
 
     flash(f'{name} and all their records have been permanently deleted.', 'info')
     return redirect(url_for('members.index'))
+
+
+# ── CSV import ───────────────────────────────────────────────────────────────
+
+IMPORT_COLUMNS = ['First Name', 'Last Name', 'Email', 'Phone',
+                  'Date of Birth', 'Joining Date', 'Status', 'Notes']
+
+
+def _parse_member_csv(text, existing_phones, existing_emails):
+    """Turn uploaded CSV text into (rows_to_create, problems).
+
+    Pure function so the rules can be tested without a request. Column names
+    match members/export.csv, so a file exported from KriyaCore can be edited
+    and sent straight back.
+
+    Every row is checked before anything is written, and a bad row is
+    reported with its line number rather than aborting the batch — one typo
+    in row 40 should not cost the other 200.
+    """
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames:
+        return [], [(0, 'The file is empty.')]
+
+    # Tolerate case and spacing differences in the header row.
+    normalise = lambda s: (s or '').strip().lower().replace('_', ' ')
+    headers = {normalise(h): h for h in reader.fieldnames}
+    for required in ('first name', 'last name'):
+        if required not in headers:
+            return [], [(0, f'Missing required column "{required.title()}". '
+                            f'Found: {", ".join(reader.fieldnames)}')]
+
+    def cell(row, name):
+        key = headers.get(normalise(name))
+        return (row.get(key) or '').strip() if key else ''
+
+    rows, problems = [], []
+    seen_phones, seen_emails = set(), set()
+
+    for line, row in enumerate(reader, start=2):      # line 1 is the header
+        first = cell(row, 'First Name')
+        last  = cell(row, 'Last Name')
+        if not first and not last and not any((v or '').strip() for v in row.values()):
+            continue                                  # blank line, not an error
+        if not first or not last:
+            problems.append((line, 'First and last name are both required.'))
+            continue
+
+        phone = cell(row, 'Phone')
+        email = cell(row, 'Email').lower()
+
+        # Duplicates, against the gym's existing members and within the file.
+        if phone and (phone in existing_phones or phone in seen_phones):
+            problems.append((line, f'{first} {last}: phone {phone} is already a member.'))
+            continue
+        if email and (email in existing_emails or email in seen_emails):
+            problems.append((line, f'{first} {last}: email {email} is already a member.'))
+            continue
+
+        joining_raw = cell(row, 'Joining Date')
+        try:
+            joining = date.fromisoformat(joining_raw) if joining_raw else date.today()
+        except ValueError:
+            problems.append((line, f'{first} {last}: joining date "{joining_raw}" '
+                                   f'is not YYYY-MM-DD.'))
+            continue
+
+        dob_raw = cell(row, 'Date of Birth')
+        try:
+            dob = date.fromisoformat(dob_raw) if dob_raw else None
+        except ValueError:
+            problems.append((line, f'{first} {last}: date of birth "{dob_raw}" '
+                                   f'is not YYYY-MM-DD.'))
+            continue
+
+        status = cell(row, 'Status').lower() or 'active'
+        if status not in ('active', 'inactive', 'suspended'):
+            problems.append((line, f'{first} {last}: status "{status}" must be '
+                                   f'active, inactive or suspended.'))
+            continue
+
+        if phone:
+            seen_phones.add(phone)
+        if email:
+            seen_emails.add(email)
+
+        rows.append({'first_name': first, 'last_name': last, 'email': email,
+                     'phone': phone, 'date_of_birth': dob, 'joining_date': joining,
+                     'status': status, 'notes': cell(row, 'Notes'), 'line': line})
+
+    return rows, problems
+
+
+MAX_IMPORT_BYTES = 2 * 1024 * 1024      # ~20k members; far past any real gym
+
+
+@members_bp.route('/import', methods=['GET', 'POST'])
+@login_required
+@role_required('super_admin')
+def import_csv():
+    """Bulk-add members from a spreadsheet.
+
+    Two passes over one upload: the first shows what would happen, the second
+    writes it. The file's text rides back in a hidden field rather than being
+    parked in the session — a 300-row CSV is small, and a browser refresh on
+    a half-finished import should do nothing rather than something.
+    """
+    gid = current_user.gym_id
+    gym = current_user.gym
+
+    if request.method == 'GET':
+        return render_template('members/import.html', columns=IMPORT_COLUMNS)
+
+    # Second pass carries the text it already validated; first pass has a file.
+    text = request.form.get('csv_text')
+    if text is None:
+        upload = request.files.get('file')
+        if not upload or not upload.filename:
+            flash('Choose a CSV file to import.', 'danger')
+            return redirect(url_for('members.import_csv'))
+        raw = upload.read(MAX_IMPORT_BYTES + 1)
+        if len(raw) > MAX_IMPORT_BYTES:
+            flash('That file is larger than 2 MB. Split it and import in parts.', 'danger')
+            return redirect(url_for('members.import_csv'))
+        try:
+            # utf-8-sig drops the BOM Excel writes, which would otherwise
+            # become part of the first column's name.
+            text = raw.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            flash('That file is not UTF-8 text. Re-save it as CSV UTF-8.', 'danger')
+            return redirect(url_for('members.import_csv'))
+
+    existing = Member.query.filter_by(gym_id=gid).all()
+    rows, problems = _parse_member_csv(
+        text,
+        {m.phone for m in existing if m.phone},
+        {m.email.lower() for m in existing if m.email},
+    )
+
+    # Plan limit applies to the batch, not one at a time.
+    tier  = gym.plan_tier or 'starter'
+    limit = PLANS.get(tier, PLANS['starter'])['max_members']
+    room  = None if limit is None else limit - len(existing)
+    if room is not None and len(rows) > room:
+        problems.append((0, f'This gym can hold {limit} members on the '
+                            f'{PLANS[tier]["label"]} plan and has {len(existing)}. '
+                            f'The file adds {len(rows)}. Upgrade or split the file.'))
+        rows = []
+
+    if request.form.get('confirm') != 'yes':
+        return render_template('members/import.html', columns=IMPORT_COLUMNS,
+                               rows=rows, problems=problems, csv_text=text,
+                               preview=True)
+
+    for r in rows:
+        db.session.add(Member(gym_id=gid, **{k: v for k, v in r.items() if k != 'line'}))
+    db.session.commit()
+
+    flash(f'Imported {len(rows)} member{"" if len(rows) == 1 else "s"}.'
+          + (f' {len(problems)} row(s) were skipped.' if problems else ''), 'success')
+    return redirect(url_for('members.index'))
+
+
+@members_bp.route('/import/template.csv')
+@login_required
+@role_required('super_admin')
+def import_template():
+    """A blank CSV with the right headers, plus one row showing the formats.
+
+    Built from IMPORT_COLUMNS, the same list the parser reads, so the file a
+    gym downloads cannot drift from the file the importer accepts.
+
+    The example row is left in deliberately — it shows the date format, which
+    is the thing people get wrong — and named so nobody mistakes it for real
+    data. If it survives to the upload, the import preview lists every name
+    before writing, so it gets caught there.
+    """
+    example = {
+        'First Name':    'Example',
+        'Last Name':     'Delete This Row',
+        'Email':         'member@example.com',
+        'Phone':         '9876500000',
+        'Date of Birth': '1994-08-23',
+        'Joining Date':  '2026-01-15',
+        'Status':        'active',
+        'Notes':         'Optional free text',
+    }
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(IMPORT_COLUMNS)
+    writer.writerow([example[c] for c in IMPORT_COLUMNS])
+
+    return Response(
+        output.getvalue(),
+        content_type='text/csv; charset=utf-8',
+        headers={'Content-Disposition':
+                 'attachment; filename="kriyacore-member-import-template.csv"'},
+    )
