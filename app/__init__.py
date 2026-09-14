@@ -126,6 +126,15 @@ def create_app():
     is_production = os.environ.get('FLASK_ENV') == 'production'
     app.config['SECRET_KEY'] = _load_secret_key(is_production)
 
+    # ── Static caching ───────────────────────────────────────────────────────
+    # Every static file is version-pinned in its own filename
+    # (tailwind-3.4.16.js, password-toggle-1.js), so the bytes behind a URL
+    # never change and a browser can keep them for a year. Flask's default is
+    # no-cache, which made every page load revalidate 700 KB of vendored JS —
+    # a round trip per page, on a phone, at a gym's front desk. Bump the
+    # number in a filename when its contents change.
+    app.config['SEND_FILE_MAX_AGE_DEFAULT'] = timedelta(days=365)
+
     # ── Session cookie hardening ─────────────────────────────────────────────
     # SECURE requires HTTPS, so it's only forced on in production, where TLS
     # is terminated in front of the app (nginx, or a Cloudflare tunnel).
@@ -138,13 +147,15 @@ def create_app():
     app.config['IS_PRODUCTION'] = is_production
 
     # ── Session lifetime ─────────────────────────────────────────────────────
-    # Sessions used to last until the browser closed, which on a gym's shared
-    # front-desk machine means "forever" — nobody closes that browser. Twelve
-    # hours covers a full shift and expires overnight.
+    # One hour of INACTIVITY, not one hour per session: with
+    # SESSION_REFRESH_EACH_REQUEST the clock resets on every request, so a
+    # receptionist working the desk all day is never signed out, while a
+    # machine left alone at the counter is.
     #
-    # SESSION_REFRESH_EACH_REQUEST makes it a sliding window: the clock resets
-    # on activity, so this logs out idle machines, not busy ones.
-    app.config['PERMANENT_SESSION_LIFETIME']  = timedelta(hours=12)
+    # A gym's front desk is a shared, unattended, public-facing computer that
+    # nobody ever closes the browser on. Twelve hours covered a shift; an
+    # hour covers a lunch break.
+    app.config['PERMANENT_SESSION_LIFETIME']  = timedelta(hours=1)
     app.config['SESSION_REFRESH_EACH_REQUEST'] = True
     # "Remember me" is a deliberate, longer-lived choice by the user, but it
     # still has to end — an indefinite cookie on a lost phone is a standing
